@@ -1,0 +1,1 @@
+"""LexoraAI — RAG pipeline application."""

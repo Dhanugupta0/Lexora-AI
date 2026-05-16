@@ -1,0 +1,242 @@
+{
+  "info": {
+    "name": "LexoraAI RAG Pipeline",
+    "description": "Postman collection for the LexoraAI RAG pipeline API. Set the `baseUrl` variable to your deployment URL.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "lexora-ai-rag-collection"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "documentId",
+      "value": "",
+      "type": "string",
+      "description": "Populated automatically by the Upload request test script"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Returns 200 when API, PostgreSQL, and ChromaDB are all reachable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has status field', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "Upload Documents",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select one or more PDF, DOCX, or TXT files"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "upload"]
+            },
+            "description": "Upload 1–20 documents. Processing is asynchronous — poll GET /documents/{id} to check status."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 202', () => pm.response.to.have.status(202));",
+                  "const json = pm.response.json();",
+                  "if (json.accepted && json.accepted.length > 0) {",
+                  "  pm.collectionVariables.set('documentId', json.accepted[0].document_id);",
+                  "  console.log('Saved documentId:', json.accepted[0].document_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents?page=1&page_size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "documents"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "page_size", "value": "20"},
+                {"key": "status", "value": "ready", "disabled": true}
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has documents array', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('documents');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "documents", "{{documentId}}"]
+            },
+            "description": "Returns document metadata and up to 10 chunk previews."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "documents", "{{documentId}}"]
+            },
+            "description": "Deletes the document, its chunks from PostgreSQL, and its vectors from ChromaDB."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 404', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Query",
+      "item": [
+        {
+          "name": "Query Documents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are the main topics covered in the documents?\",\n  \"top_k\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/query",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "query"]
+            },
+            "description": "Run a RAG query across all uploaded documents."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has answer and sources', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.all.keys('answer', 'sources', 'question');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query Filtered by Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Summarise this document\",\n  \"top_k\": 3,\n  \"document_ids\": [\"{{documentId}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/query",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "query"]
+            },
+            "description": "Restrict retrieval to a specific document."
+          }
+        }
+      ]
+    }
+  ]
+}
