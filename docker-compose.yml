@@ -1,12 +1,7 @@
 version: "3.9"
 
-# ════════════════════════════════════════════════════════════════════════════════
-#  LexoraAI — Docker Compose (local + cloud)
-# ════════════════════════════════════════════════════════════════════════════════
-
 services:
 
-  # ── PostgreSQL ───────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: lexora_postgres
@@ -20,67 +15,31 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lexora} -d ${POSTGRES_DB:-lexora}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lexora}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - lexora_net
 
-  # ── ChromaDB ─────────────────────────────────────────────────────────────────
-  chromadb:
-    image: chromadb/chroma:0.5.3
-    container_name: lexora_chromadb
-    restart: unless-stopped
-    environment:
-      - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/data
-      - ANONYMIZED_TELEMETRY=FALSE
-    volumes:
-      - chroma_data:/chroma/data
-    ports:
-      - "8001:8000"          # exposed on 8001 to avoid clash with API
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - lexora_net
-
-  # ── FastAPI Application ───────────────────────────────────────────────────────
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
+    build: .
     container_name: lexora_api
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lexora}:${POSTGRES_PASSWORD:-lexora_secret}@postgres:5432/${POSTGRES_DB:-lexora}
-      DATABASE_SYNC_URL: postgresql+psycopg2://${POSTGRES_USER:-lexora}:${POSTGRES_PASSWORD:-lexora_secret}@postgres:5432/${POSTGRES_DB:-lexora}
-      CHROMA_HOST: chromadb
-      CHROMA_PORT: "8000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lexora}:${POSTGRES_PASSWORD:-lexora_secret}@postgres:5432/${POSTGRES_DB:-lexora}
+      CHROMA_PATH: /data/chroma
       UPLOAD_DIR: /uploads
     volumes:
+      - chroma_data:/data/chroma
       - upload_data:/uploads
     ports:
       - "8000:8000"
+      - "7860:7860"
     depends_on:
       postgres:
         condition: service_healthy
-      chromadb:
-        condition: service_healthy
-    networks:
-      - lexora_net
 
 volumes:
   postgres_data:
   chroma_data:
   upload_data:
-
-networks:
-  lexora_net:
-    driver: bridge

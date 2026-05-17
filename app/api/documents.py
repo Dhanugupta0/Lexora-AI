@@ -1,35 +1,24 @@
-"""Documents endpoints — GET /api/v1/documents, GET /documents/{id}, DELETE /documents/{id}."""
 import logging
 import os
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session
 
-from app.api.deps import DBSession, VS
 from app.config import get_settings
-from app.db.models import Chunk, Document, DocumentStatus
+from app.database import Document, DocumentStatus, get_db
+from app.pipeline import delete_document_vectors
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-# ── Response schemas ──────────────────────────────────────────────────────────
-
-class ChunkPreview(BaseModel):
-    chunk_index: int
-    page_number: Optional[int]
-    text_preview: str
-    token_count: int
-
-
-class DocumentResponse(BaseModel):
+class DocumentOut(BaseModel):
     id: str
-    original_filename: str
+    filename: str
     file_type: str
     file_size: int
     page_count: Optional[int]
@@ -40,23 +29,53 @@ class DocumentResponse(BaseModel):
     processed_time: Optional[str]
 
 
-class DocumentDetailResponse(DocumentResponse):
-    chunks_preview: List[ChunkPreview]
+@router.get("/documents", response_model=List[DocumentOut])
+def list_documents(
+    db: Session = Depends(get_db),
+    status: Optional[DocumentStatus] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    q = db.query(Document).order_by(Document.upload_time.desc())
+    if status:
+        q = q.filter(Document.status == status)
+    docs = q.offset(offset).limit(limit).all()
+    return [_to_out(d) for d in docs]
 
 
-class DocumentListResponse(BaseModel):
-    documents: List[DocumentResponse]
-    total: int
-    page: int
-    page_size: int
+@router.get("/documents/{document_id}", response_model=DocumentOut)
+def get_document(document_id: str, db: Session = Depends(get_db)):
+    doc = db.get(Document, document_id)
+    if not doc:
+        raise HTTPException(404, f"Document '{document_id}' not found.")
+    return _to_out(doc)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+@router.delete("/documents/{document_id}")
+def delete_document(document_id: str, db: Session = Depends(get_db)):
+    doc = db.get(Document, document_id)
+    if not doc:
+        raise HTTPException(404, f"Document '{document_id}' not found.")
 
-def _doc_to_response(doc: Document) -> DocumentResponse:
-    return DocumentResponse(
+    try:
+        delete_document_vectors(document_id)
+    except Exception as exc:
+        logger.warning("Could not remove ChromaDB vectors for %s: %s", document_id, exc)
+
+    for ext in ("pdf", "docx", "txt"):
+        path = Path(settings.UPLOAD_DIR) / f"{document_id}.{ext}"
+        if path.exists():
+            os.remove(path)
+            break
+
+    db.delete(doc)
+    return {"message": f"Document '{document_id}' deleted."}
+
+
+def _to_out(doc: Document) -> DocumentOut:
+    return DocumentOut(
         id=doc.id,
-        original_filename=doc.original_filename,
+        filename=doc.filename,
         file_type=doc.file_type,
         file_size=doc.file_size,
         page_count=doc.page_count,
@@ -66,94 +85,3 @@ def _doc_to_response(doc: Document) -> DocumentResponse:
         upload_time=doc.upload_time.isoformat(),
         processed_time=doc.processed_time.isoformat() if doc.processed_time else None,
     )
-
-
-# ── Routes ────────────────────────────────────────────────────────────────────
-
-@router.get(
-    "/documents",
-    response_model=DocumentListResponse,
-    summary="List all documents",
-)
-async def list_documents(
-    db: DBSession,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    status_filter: Optional[DocumentStatus] = Query(default=None, alias="status"),
-):
-    """Return paginated document metadata."""
-    query = select(Document).order_by(Document.upload_time.desc())
-    if status_filter:
-        query = query.where(Document.status == status_filter)
-
-    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = total_result.scalar_one()
-
-    offset = (page - 1) * page_size
-    result = await db.execute(query.offset(offset).limit(page_size))
-    docs = result.scalars().all()
-
-    return DocumentListResponse(
-        documents=[_doc_to_response(d) for d in docs],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
-
-
-@router.get(
-    "/documents/{document_id}",
-    response_model=DocumentDetailResponse,
-    summary="Get document detail with chunk preview",
-)
-async def get_document(document_id: str, db: DBSession):
-    result = await db.execute(
-        select(Document)
-        .options(selectinload(Document.chunks))
-        .where(Document.id == document_id)
-    )
-    doc = result.scalar_one_or_none()
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document '{document_id}' not found.")
-
-    previews = [
-        ChunkPreview(
-            chunk_index=c.chunk_index,
-            page_number=c.page_number,
-            text_preview=c.text[:300],
-            token_count=c.token_count,
-        )
-        for c in sorted(doc.chunks, key=lambda x: x.chunk_index)[:10]  # first 10 chunks
-    ]
-
-    base = _doc_to_response(doc)
-    return DocumentDetailResponse(**base.model_dump(), chunks_preview=previews)
-
-
-@router.delete(
-    "/documents/{document_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Delete a document and its embeddings",
-)
-async def delete_document(document_id: str, db: DBSession, vector_store: VS):
-    result = await db.execute(select(Document).where(Document.id == document_id))
-    doc = result.scalar_one_or_none()
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document '{document_id}' not found.")
-
-    # Remove from ChromaDB
-    try:
-        await vector_store.delete_by_document_id(document_id)
-    except Exception as exc:
-        logger.warning("Could not delete vectors for %s: %s", document_id, exc)
-
-    # Remove raw file
-    file_path = Path(settings.UPLOAD_DIR) / doc.filename
-    if file_path.exists():
-        os.remove(file_path)
-
-    # Cascade-deletes chunks via ORM relationship
-    await db.delete(doc)
-    await db.commit()
-
-    return {"message": f"Document '{document_id}' deleted successfully."}
