@@ -13,9 +13,16 @@ def api_health():
 
 
 def api_upload(files):
-    parts = [("files", (f.name.split("/")[-1], open(f.name, "rb"), "application/octet-stream")) for f in files]
-    r = requests.post(f"{API}/upload", files=parts, timeout=30)
-    return r.json(), r.status_code
+    try:
+        parts = [("files", (f.name.split("/")[-1], open(f.name, "rb"), "application/octet-stream")) for f in files]
+        r = requests.post(f"{API}/upload", files=parts, timeout=30)
+        return r.json(), r.status_code
+    except requests.ConnectionError:
+        return {"detail": "Cannot connect to API. Is the FastAPI server running on port 8000?"}, 503
+    except requests.exceptions.JSONDecodeError:
+        return {"detail": f"API returned non-JSON response (status {r.status_code})"}, r.status_code
+    except Exception as e:
+        return {"detail": str(e)}, 500
 
 
 def api_docs():
@@ -28,8 +35,15 @@ def api_delete(doc_id):
 
 
 def api_query(q, top_k=5):
-    r = requests.post(f"{API}/query", json={"question": q, "top_k": top_k}, timeout=60)
-    return r.json(), r.status_code
+    try:
+        r = requests.post(f"{API}/query", json={"question": q, "top_k": top_k}, timeout=60)
+        return r.json(), r.status_code
+    except requests.ConnectionError:
+        return {"detail": "Cannot connect to API. Is the FastAPI server running on port 8000?"}, 503
+    except requests.exceptions.JSONDecodeError:
+        return {"detail": f"API returned non-JSON response (status {r.status_code})"}, r.status_code
+    except Exception as e:
+        return {"detail": str(e)}, 500
 
 
 def doc_table():
@@ -39,7 +53,7 @@ def doc_table():
     lines = []
     for i, d in enumerate(docs, 1):
         s = "🟢" if d["status"] == "ready" else ("🔴" if d["status"] == "error" else "🟡")
-        lines.append(f"{i}. {s} **{d['filename']}** ({d['file_type'].upper()}, {d['file_size']//1024}KB) — {d['chunk_count'] or 0} chunks — ID: `{d['id'][:12]}…`")
+        lines.append(f"{i}. {s} **{d['filename']}** ({d['file_type'].upper()}, {d['file_size']//1024}KB) — {d['chunk_count'] or 0} chunks\n\n   ID: `{d['id']}`")
     return "\n\n".join(lines)
 
 
@@ -80,6 +94,17 @@ def do_delete(doc_id):
     if api_delete(doc_id.strip()):
         return "Deleted.", doc_table()
     return "Not found.", doc_table()
+
+
+def do_delete_all():
+    docs = api_docs()
+    if not docs:
+        return "No documents to delete.", doc_table()
+    count = 0
+    for d in docs:
+        if api_delete(d["id"]):
+            count += 1
+    return f"Deleted {count}/{len(docs)} documents.", doc_table()
 
 
 def do_query(question, history, top_k):
@@ -145,11 +170,13 @@ with gr.Blocks(title="LexoraAI") as demo:
                     with gr.Row():
                         did = gr.Textbox(placeholder="Doc ID to delete…", show_label=False, container=False, scale=4)
                         dbtn = gr.Button("Delete", size="sm", variant="stop", scale=1)
+                    dallbtn = gr.Button("Delete All", size="sm", variant="stop")
                     dmsg = gr.Markdown("")
 
     ubtn.click(do_upload, [files], [umsg, dtable])
     rbtn.click(doc_table, outputs=dtable)
     dbtn.click(do_delete, [did], [dmsg, dtable])
+    dallbtn.click(do_delete_all, outputs=[dmsg, dtable])
     send.click(do_query, [q, chatbot, topk], [chatbot, src, q])
     q.submit(do_query, [q, chatbot, topk], [chatbot, src, q])
     clear.click(lambda: ([], "No sources yet. Ask a question first."), outputs=[chatbot, src])
