@@ -1,9 +1,12 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db
@@ -15,6 +18,8 @@ logging.basicConfig(
 )
 
 settings = get_settings()
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 @asynccontextmanager
@@ -44,7 +49,14 @@ app.add_middleware(
 
 app.include_router(api_router)
 
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
 
 @app.get("/api/v1/health", tags=["health"])
 def health():
     return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return FileResponse(str(STATIC_DIR / "index.html"))

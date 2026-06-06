@@ -48,12 +48,12 @@ graph TD
         Docs --> ChromaDB
     end
 
-    Gradio["Gradio UI on port 7860"] -->|HTTP calls| Upload
-    Gradio -->|HTTP calls| Query
-    Gradio -->|HTTP calls| Docs
+    Browser["Web UI at /"] -->|HTTP calls| Upload
+    Browser -->|HTTP calls| Query
+    Browser -->|HTTP calls| Docs
 ```
 
-This is the entire system. The FastAPI server handles everything — parsing, chunking, embedding, storing, searching, and generating answers. Gradio is just a frontend that talks to the API over HTTP.
+This is the entire system. The FastAPI server handles everything — parsing, chunking, embedding, storing, searching, and generating answers. The web UI is a static HTML page served by the same server.
 
 ---
 
@@ -64,7 +64,7 @@ LexoraAI/
 ├── app/                        # All backend code lives here
 │   ├── config.py               # Loads settings from .env (API keys, paths, etc.)
 │   ├── database.py             # Database setup — tables, connection, models
-│   ├── main.py                 # Entry point — creates the FastAPI app
+│   ├── main.py                 # Entry point — creates the FastAPI app, serves frontend
 │   ├── pipeline.py             # The core logic — parsing, chunking, embedding, search, answer generation
 │   └── api/
 │       ├── router.py           # Groups all API routes under /api/v1
@@ -72,13 +72,16 @@ LexoraAI/
 │       ├── query.py            # Takes a question, runs the RAG pipeline, returns answer
 │       └── documents.py        # List, get, or delete uploaded documents
 │
+├── static/
+│   └── index.html              # Web UI — chat interface + document management
+│
 ├── tests/
 │   └── test_pipeline.py        # 21 tests — covers parser, chunker, embedder, and API
 │
-├── frontend.py                 # Gradio web UI — chat interface + document management
 ├── requirements.txt            # Python packages needed
-├── Dockerfile                  # Builds the API into a Docker container
+├── Dockerfile                  # Builds the app into a Docker container
 ├── docker-compose.yml          # Runs PostgreSQL + API together with Docker
+├── render.yaml                 # One-click deploy to Render
 ├── .env.example                # Template — copy to .env and add your OpenAI key
 ├── postman_collection.json     # Import into Postman to test all API endpoints
 ├── pytest.ini                  # Test config
@@ -90,8 +93,8 @@ LexoraAI/
 - **`pipeline.py`** — This is the most important file. It has all the RAG logic: parsing documents, splitting into chunks, creating embeddings, storing in ChromaDB, searching, and calling OpenAI to generate answers.
 - **`database.py`** — Sets up SQLite (local) or PostgreSQL (Docker) to store document metadata like filename, status, upload time, etc.
 - **`config.py`** — Reads `.env` file and makes settings available to the rest of the app.
-- **`main.py`** — Creates the FastAPI app, sets up CORS, and connects everything on startup.
-- **`frontend.py`** — A Gradio app that gives you a web UI to upload files and ask questions instead of using the API directly.
+- **`main.py`** — Creates the FastAPI app, serves the web UI, sets up CORS, and connects everything on startup.
+- **`static/index.html`** — A single-page web UI for uploading files and asking questions. No build step — just plain HTML/CSS/JS.
 
 ---
 
@@ -119,7 +122,7 @@ LexoraAI/
 | LLM | OpenAI GPT-4o-mini | Generates answers from retrieved chunks |
 | Doc parsing | PyMuPDF, python-docx | Reads PDF and DOCX files |
 | Tokenizer | tiktoken | Counts tokens for chunking |
-| Frontend | Gradio | Simple web UI |
+| Frontend | HTML/CSS/JS (static) | Zero dependencies, served by FastAPI |
 | Tests | pytest | 21 tests, all passing |
 
 ---
@@ -165,11 +168,8 @@ pip install -r requirements.txt
 cp .env.example .env
 # Open .env and add your OPENAI_API_KEY
 
-# Start the API server
+# Start the server (API + UI)
 PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-# In a second terminal — start the Gradio frontend
-PYTHONPATH=. python frontend.py
 ```
 
 ### Docker Setup
@@ -201,11 +201,11 @@ Once the server is running:
 
 | What | URL |
 |------|-----|
-| **Gradio UI** (upload files, ask questions) | http://localhost:7860 |
+| **Web UI** (upload files, ask questions) | http://localhost:8000 |
 | **API Docs** (Swagger — try endpoints directly) | http://localhost:8000/docs |
 | **Health Check** | http://localhost:8000/api/v1/health |
 
-Open http://localhost:7860 in your browser to start using the app. Upload a document, wait for it to process, then ask questions about it.
+Open http://localhost:8000 in your browser to start using the app. Upload a document, wait for it to process, then ask questions about it.
 
 ---
 

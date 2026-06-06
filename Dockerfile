@@ -9,9 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
-COPY frontend.py .
-COPY start.sh .
-RUN chmod +x start.sh
+COPY static/ ./static/
 
 RUN mkdir -p /data/uploads /data/chroma /data/db
 
@@ -19,4 +17,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 10000
 
-CMD ["bash", "start.sh"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]

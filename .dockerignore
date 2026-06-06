@@ -15,3 +15,4 @@ htmlcov/
 .idea/
 .DS_Store
 postman_collection.json
+frontend.py
