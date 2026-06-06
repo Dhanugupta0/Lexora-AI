@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 50
     MAX_DOCUMENTS: int = 20
 
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"

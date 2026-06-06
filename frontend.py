@@ -1,8 +1,9 @@
+import os
 import time
 import requests
 import gradio as gr
 
-API = "http://localhost:8000/api/v1"
+API = os.getenv("API_URL", "http://localhost:8000") + "/api/v1"
 
 
 def api_health():

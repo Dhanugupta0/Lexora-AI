@@ -1,0 +1,17 @@
+.venv/
+.git/
+__pycache__/
+*.pyc
+local_data/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+tests/
+.coverage
+htmlcov/
+*.log
+.vscode/
+.idea/
+.DS_Store
+postman_collection.json

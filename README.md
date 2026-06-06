@@ -35,7 +35,7 @@ graph TD
     subgraph FastAPI Server
         Upload --> Parser["Parser — extracts text from PDF/DOCX/TXT"]
         Parser --> Chunker["Chunker — splits text into 512-token pieces"]
-        Chunker --> Embedder["Embedder — converts text to vectors using sentence-transformers"]
+        Chunker --> Embedder["Embedder — converts text to vectors using OpenAI Embeddings API"]
         Embedder --> ChromaDB["ChromaDB — stores vectors"]
         Upload --> SQLite["SQLite/PostgreSQL — stores file metadata"]
 
@@ -115,7 +115,7 @@ LexoraAI/
 | API | FastAPI | Fast, async, auto-generates docs |
 | Database | SQLite (local) / PostgreSQL (Docker) | Stores document metadata |
 | Vector store | ChromaDB | Stores and searches embeddings |
-| Embeddings | Sentence-Transformers (all-MiniLM-L6-v2) | Runs locally, no API key needed |
+| Embeddings | OpenAI text-embedding-3-small | High quality, lightweight (no PyTorch needed) |
 | LLM | OpenAI GPT-4o-mini | Generates answers from retrieved chunks |
 | Doc parsing | PyMuPDF, python-docx | Reads PDF and DOCX files |
 | Tokenizer | tiktoken | Counts tokens for chunking |
@@ -134,7 +134,7 @@ All settings come from the `.env` file. Copy `.env.example` to `.env` and fill i
 | `DATABASE_URL` | `sqlite:///./local_data/lexora.db` | Database connection string |
 | `CHROMA_PATH` | `./local_data/chroma` | Where ChromaDB stores vectors |
 | `UPLOAD_DIR` | `./local_data/uploads` | Where uploaded files are saved |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Which embedding model to use |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Which OpenAI embedding model to use |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Which OpenAI model to use |
 | `CHUNK_SIZE_TOKENS` | `512` | Tokens per chunk |
 | `CHUNK_OVERLAP_TOKENS` | `50` | Overlap between chunks |
@@ -206,6 +206,34 @@ Once the server is running:
 | **Health Check** | http://localhost:8000/api/v1/health |
 
 Open http://localhost:7860 in your browser to start using the app. Upload a document, wait for it to process, then ask questions about it.
+
+---
+
+## Deploy on Render
+
+### One-click deploy
+
+1. Push your code to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com/) and click **New > Blueprint**
+3. Connect your GitHub repo — Render reads `render.yaml` and sets everything up
+4. Add your `OPENAI_API_KEY` in the Render environment variables when prompted
+5. Deploy — your app will be live at `https://lexora-ai.onrender.com`
+
+### Manual deploy
+
+1. Go to [Render Dashboard](https://dashboard.render.com/) and click **New > Web Service**
+2. Connect your GitHub repo
+3. Set **Runtime** to `Docker`
+4. Add these environment variables:
+   - `OPENAI_API_KEY` = your key
+   - `DATABASE_URL` = `sqlite:////data/db/lexora.db`
+   - `CHROMA_PATH` = `/data/chroma`
+   - `UPLOAD_DIR` = `/data/uploads`
+   - `EMBEDDING_MODEL` = `text-embedding-3-small`
+5. (Optional) Add a **Persistent Disk** — mount at `/data`, 1 GB
+6. Deploy
+
+> **Note:** Free tier services spin down after 15 minutes of inactivity. First request after spin-down takes ~30 seconds.
 
 ---
 

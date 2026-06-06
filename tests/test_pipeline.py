@@ -80,14 +80,30 @@ class TestEmbedder:
         from app.pipeline import get_embeddings
         assert get_embeddings([]) == []
 
-    def test_embedder_returns_vectors(self):
+    @patch("app.pipeline.OpenAI")
+    def test_embedder_returns_vectors(self, mock_openai_cls):
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_item = MagicMock()
+        mock_item.embedding = [0.1, 0.2, 0.3]
+        mock_client.embeddings.create.return_value = MagicMock(data=[mock_item])
+
         from app.pipeline import get_embeddings
         results = get_embeddings(["hello world"])
         assert len(results) == 1
         assert isinstance(results[0], list)
         assert len(results[0]) > 0
 
-    def test_embedder_batch(self):
+    @patch("app.pipeline.OpenAI")
+    def test_embedder_batch(self, mock_openai_cls):
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_item_1 = MagicMock()
+        mock_item_1.embedding = [0.1, 0.2, 0.3]
+        mock_item_2 = MagicMock()
+        mock_item_2.embedding = [0.4, 0.5, 0.6]
+        mock_client.embeddings.create.return_value = MagicMock(data=[mock_item_1, mock_item_2])
+
         from app.pipeline import get_embeddings
         results = get_embeddings(["first sentence", "second sentence"])
         assert len(results) == 2

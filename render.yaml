@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: lexora-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:////data/db/lexora.db
+      - key: CHROMA_PATH
+        value: /data/chroma
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+    disk:
+      name: lexora-data
+      mountPath: /data
+      sizeGB: 1

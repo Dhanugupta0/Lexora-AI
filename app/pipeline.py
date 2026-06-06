@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import chromadb
 import tiktoken
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
 from app.config import get_settings
 
@@ -13,14 +13,6 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _collection = None
-_embedder: Optional[SentenceTransformer] = None
-
-
-def get_embedder() -> SentenceTransformer:
-    global _embedder
-    if _embedder is None:
-        _embedder = SentenceTransformer(settings.EMBEDDING_MODEL)
-    return _embedder
 
 
 def get_collection():
@@ -103,11 +95,7 @@ class Chunk:
     page_number: int
 
 
-def chunk_text(
-    pages: List[str],
-    chunk_size: Optional[int] = None,
-    overlap: Optional[int] = None,
-) -> List[Chunk]:
+def chunk_text(pages: List[str],chunk_size: Optional[int] = None,overlap: Optional[int] = None,) -> List[Chunk]:
     chunk_size = chunk_size or settings.CHUNK_SIZE_TOKENS
     overlap = overlap or settings.CHUNK_OVERLAP_TOKENS
 
@@ -149,16 +137,15 @@ def chunk_text(
 def get_embeddings(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []
-    model = get_embedder()
-    vectors = model.encode(texts, show_progress_bar=False)
-    return [v.tolist() for v in vectors]
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    response = client.embeddings.create(
+        model=settings.EMBEDDING_MODEL,
+        input=texts,
+    )
+    return [item.embedding for item in response.data]
 
 
-def store_chunks(
-    document_id: str,
-    chunks: List[Chunk],
-    embeddings: List[List[float]],
-) -> List[str]:
+def store_chunks(document_id: str, chunks: List[Chunk], embeddings: List[List[float]]) -> List[str]:
     collection = get_collection()
     ids = [f"{document_id}_{c.chunk_index}" for c in chunks]
     collection.upsert(
@@ -234,7 +221,6 @@ def search_chunks(
 
 
 def generate_answer(question: str, context_chunks: List[SearchResult]) -> str:
-    from openai import OpenAI
 
     context_parts = []
     for i, chunk in enumerate(context_chunks, start=1):
