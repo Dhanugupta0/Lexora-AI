@@ -355,6 +355,7 @@ async function loadDocs() {
           <span>${(d.file_size/1024).toFixed(0)} KB</span>
           ${d.chunk_count ? `<span>${d.chunk_count} chunks</span>` : ''}
         </div>
+        ${d.error_message ? `<div style="font-size:.72rem;color:var(--error);margin-top:6px;word-break:break-all">⚠ ${esc(d.error_message)}</div>` : ''}
         <div class="doc-actions">
           <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.id}')">Delete</button>
         </div>

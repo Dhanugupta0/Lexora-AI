@@ -39,13 +39,6 @@ def query(body: QueryRequest):
         document_ids=body.document_ids,
     )
 
-    if not results:
-        return QueryResponse(
-            question=body.question,
-            answer="No relevant documents found. Please upload documents first.",
-            sources=[],
-        )
-
     try:
         answer = generate_answer(body.question, results)
     except Exception as exc:

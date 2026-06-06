@@ -230,10 +230,10 @@ def generate_answer(question: str, context_chunks: List[SearchResult]) -> str:
     context = "\n\n".join(context_parts)
 
     system_prompt = (
-        "You are LexoraAI, a document assistant. "
-        "Answer the question using ONLY the context excerpts below. "
-        "If the answer is not in the context, say so honestly. "
-        "Do not make up information."
+        "You are LexoraAI, a highly intelligent and friendly document assistant. "
+        "For greetings, casual conversation, or personal statements (like 'hi', 'hey I am Dhanu', 'how are you'), behave like a normal, friendly conversational chatbot. Do not mention the 'context' for casual conversations. "
+        "For factual questions, answer them using ONLY the context excerpts below. "
+        "If the answer to a factual question is not in the context, clearly state that you couldn't find the answer in the uploaded documents, but remain helpful."
     )
     user_prompt = f"Context:\n\n{context}\n\n---\nQuestion: {question}\n\nAnswer:"
 
