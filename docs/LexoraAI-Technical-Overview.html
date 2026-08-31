@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LexoraAI — Technical Overview</title>
+<style>
+  :root {
+    --ink:        #14181f;
+    --ink-soft:   #3d4653;
+    --ink-faint:  #6b7684;
+    --rule:       #dfe3e9;
+    --rule-soft:  #eceef2;
+    --paper:      #ffffff;
+    --wash:       #f6f7f9;
+    --accent:     #1f4fd8;
+    --accent-dim: #eaf0ff;
+    --teal:       #0e7c72;
+    --teal-dim:   #e4f4f2;
+    --amber:      #9a6400;
+    --amber-dim:  #fdf3e0;
+    --rose:       #a52a3c;
+    --rose-dim:   #fceef0;
+  }
+
+  @page { size: A4; margin: 13mm 15mm 13mm 15mm; }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.6pt;
+    line-height: 1.48;
+    letter-spacing: 0.002em;
+  }
+
+  code, pre, .mono { font-family: "JetBrains Mono", "SF Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace; }
+
+  /* ---------------------------------------------------------------- cover */
+  .cover {
+    height: 269mm;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+  }
+  .cover-rule { height: 5px; background: var(--accent); width: 62mm; margin-bottom: 12mm; }
+  .cover-eyebrow {
+    font-size: 8.4pt; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
+  }
+  .cover h1 {
+    font-size: 48pt; line-height: 1.02; margin: 4mm 0 0; letter-spacing: -0.025em; font-weight: 700;
+  }
+  .cover h1 .light { color: var(--accent); }
+  .cover .tagline {
+    font-size: 15pt; line-height: 1.42; color: var(--ink-soft);
+    margin: 7mm 0 0; max-width: 138mm; font-weight: 400;
+  }
+  .cover .lede {
+    font-size: 10.4pt; line-height: 1.62; color: var(--ink-soft);
+    margin: 8mm 0 0; max-width: 132mm;
+  }
+  .cover-spacer { flex: 1; }
+  .cover-facts {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border-top: 1px solid var(--rule); padding-top: 5mm; margin-top: 8mm;
+  }
+  .cover-facts div { padding-right: 6mm; }
+  .cover-facts dt {
+    font-size: 7.6pt; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin-bottom: 1.5mm;
+  }
+  .cover-facts dd { margin: 0; font-size: 10pt; font-weight: 600; color: var(--ink); line-height: 1.35; }
+  .cover-facts dd span { display: block; font-weight: 400; color: var(--ink-faint); font-size: 8.6pt; }
+  .cover-meta {
+    margin-top: 6mm; padding-top: 4mm; border-top: 1px solid var(--rule);
+    font-size: 8.6pt; color: var(--ink-faint); display: flex; justify-content: space-between;
+  }
+
+  /* --------------------------------------------------------------- layout */
+  section { page-break-before: always; }
+  section.flow { page-break-before: auto; }
+
+  h2 {
+    font-size: 18pt; letter-spacing: -0.018em; margin: 0 0 1mm; font-weight: 700; line-height: 1.15;
+  }
+  .h2-num {
+    font-size: 8.4pt; letter-spacing: 0.2em; color: var(--accent);
+    font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 2mm;
+  }
+  .h2-sub { color: var(--ink-faint); font-size: 10pt; margin: 0 0 5mm; max-width: 152mm; }
+  h2 + .h2-sub { margin-top: 1.5mm; }
+
+  h3 {
+    font-size: 11.4pt; margin: 5.5mm 0 1.8mm; font-weight: 700; letter-spacing: -0.01em;
+    page-break-after: avoid;
+  }
+  h4 {
+    font-size: 9.4pt; margin: 5mm 0 1.5mm; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint);
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 2.6mm; }
+  p.tight { margin-bottom: 1.5mm; }
+  strong { font-weight: 650; }
+  em { font-style: italic; color: var(--ink-soft); }
+
+  a { color: var(--accent); text-decoration: none; }
+
+  ul, ol { margin: 0 0 3.5mm; padding-left: 5mm; }
+  li { margin-bottom: 1.1mm; }
+  li::marker { color: var(--ink-faint); }
+
+  .cols { column-count: 2; column-gap: 8mm; }
+  .cols p:first-child { margin-top: 0; }
+
+  /* ---------------------------------------------------------------- cards */
+  .card {
+    border: 1px solid var(--rule); border-radius: 3px; padding: 3.6mm 4.2mm;
+    margin: 0 0 3.4mm; page-break-inside: avoid; background: var(--paper);
+  }
+  .card.wash { background: var(--wash); border-color: var(--rule-soft); }
+  .card > :last-child { margin-bottom: 0; }
+  .card-title {
+    font-size: 9.6pt; font-weight: 700; margin: 0 0 2mm;
+    display: flex; align-items: baseline; gap: 2.5mm;
+  }
+  .card-title .tag {
+    font-size: 7.2pt; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 700; padding: 0.6mm 1.8mm; border-radius: 2px;
+    background: var(--accent-dim); color: var(--accent);
+  }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3.4mm; }
+  .grid2 > *, .grid3 > * { min-width: 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3.4mm; }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--accent-dim);
+    padding: 3mm 4.5mm; margin: 0 0 3.4mm; page-break-inside: avoid; border-radius: 0 3px 3px 0;
+  }
+  .callout > :last-child { margin-bottom: 0; }
+  .callout.teal { border-left-color: var(--teal); background: var(--teal-dim); }
+  .callout.amber { border-left-color: var(--amber); background: var(--amber-dim); }
+  .callout .lbl {
+    display: block; font-size: 7.6pt; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 700; color: var(--accent); margin-bottom: 1.5mm;
+  }
+  .callout.teal .lbl { color: var(--teal); }
+  .callout.amber .lbl { color: var(--amber); }
+
+  /* --------------------------------------------------------------- tables */
+  table {
+    width: 100%; border-collapse: collapse; margin: 0 0 3.4mm;
+    font-size: 8.8pt; page-break-inside: avoid;
+  }
+  thead th {
+    text-align: left; font-size: 7.6pt; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 0 3mm 2mm 0;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  tbody td { padding: 1.9mm 3mm 1.9mm 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.k { font-weight: 650; white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; font-weight: 650; white-space: nowrap; }
+  table.compact tbody td { padding-top: 1.4mm; padding-bottom: 1.4mm; }
+
+  /* ----------------------------------------------------------------- code */
+  pre {
+    background: #12161d; color: #dde3ec; border-radius: 3px;
+    padding: 3.4mm 4mm; margin: 0 0 3.4mm; font-size: 7.7pt; line-height: 1.5;
+    overflow-x: auto; white-space: pre; page-break-inside: avoid;
+  }
+  pre .c { color: #7f8b9c; }
+  pre .s { color: #9fd4a3; }
+  pre .k { color: #8ab4ff; }
+  pre .n { color: #f0c274; }
+  pre .g { color: #63c9a8; }
+  pre .r { color: #f19aa6; }
+  code {
+    font-size: 0.9em; background: var(--wash); border: 1px solid var(--rule-soft);
+    padding: 0.3mm 1mm; border-radius: 2px; color: var(--ink);
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+
+  .kv { font-size: 9pt; }
+  .kv b { font-weight: 650; }
+
+  /* -------------------------------------------------------------- figures */
+  figure { margin: 0 0 4mm; page-break-inside: avoid; }
+  figure svg { display: block; width: 100%; height: auto; }
+  figcaption {
+    font-size: 8.4pt; color: var(--ink-faint); margin-top: 2.5mm;
+    padding-top: 2mm; border-top: 1px solid var(--rule-soft);
+  }
+  figcaption b { color: var(--ink-soft); font-weight: 650; }
+
+  .steps { counter-reset: step; list-style: none; padding-left: 0; margin: 0 0 4mm; }
+  .steps > li {
+    counter-increment: step; position: relative; padding-left: 8mm; margin-bottom: 2.4mm;
+    page-break-inside: avoid;
+  }
+  .steps > li::before {
+    content: counter(step); position: absolute; left: 0; top: 0.3mm;
+    width: 5.2mm; height: 5.2mm; border-radius: 50%;
+    background: var(--ink); color: #fff;
+    font-size: 7.4pt; font-weight: 700; line-height: 5.2mm; text-align: center;
+  }
+  .steps > li b { display: block; font-size: 9.6pt; margin-bottom: 0.4mm; }
+
+  .meter { display: flex; align-items: center; gap: 2.5mm; }
+  .meter-bar { flex: 1; height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+  .meter-fill { height: 100%; background: var(--teal); border-radius: 2px; }
+
+  .footnote { font-size: 8.4pt; color: var(--ink-faint); border-top: 1px solid var(--rule-soft); padding-top: 2.5mm; }
+  .footnote > :last-child { margin-bottom: 0; }
+
+  .tree {
+    font-size: 7.3pt; line-height: 1.44; white-space: pre;
+    background: var(--wash); border: 1px solid var(--rule-soft); border-radius: 3px;
+    padding: 3mm 3.4mm; margin: 0 0 3mm; page-break-inside: avoid;
+  }
+  .tree b { font-weight: 650; color: var(--ink); }
+  .tree i { font-style: normal; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ COVER ═══ -->
+<div class="cover">
+  <div class="cover-rule"></div>
+  <div class="cover-eyebrow">Technical Overview</div>
+  <h1>Lexora<span class="light">AI</span></h1>
+  <p class="tagline">A retrieval-augmented generation system that answers questions about your documents — and verifies its own answers before showing them to you.</p>
+  <p class="lede">
+    Every claim carries a citation back to a specific page. Claims that cannot be verified against a
+    source are removed. When the documents do not contain the answer, the system says so instead of
+    inventing one. This document explains what LexoraAI solves, why the usual approach falls short,
+    and how each stage of the pipeline is built.
+  </p>
+
+  <div class="cover-spacer"></div>
+
+  <dl class="cover-facts">
+    <div><dt>Generation</dt><dd>Groq<span>gpt-oss-20b + fallback chain</span></dd></div>
+    <div><dt>Embeddings</dt><dd>Jina AI<span>jina-embeddings-v4</span></dd></div>
+    <div><dt>Retrieval</dt><dd>Hybrid<span>dense + BM25 → RRF → MMR</span></dd></div>
+    <div><dt>Verification</dt><dd>Per-claim<span>cite, score, abstain</span></dd></div>
+  </dl>
+
+  <div class="cover-meta">
+    <span>FastAPI · ChromaDB · SQLite / PostgreSQL · Docker</span>
+    <span>Version 2.0 · 142 tests</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ 01 PROBLEM ═══ -->
+<section class="flow">
+  <span class="h2-num">01 — The problem</span>
+  <h2>Confident answers are not the same as correct ones</h2>
+  <p class="h2-sub">
+    The organisations with the most documents are the ones least able to trust a language model with
+    them, and for a specific reason.
+  </p>
+
+  <p>
+    A policy handbook, a set of annual reports, a stack of contracts — the value locked in them is not
+    the text, it is the answers. Reading the text is a cost you pay to get an answer. Large language
+    models look like the obvious remedy, and for a plausible-sounding paragraph they are. The trouble
+    starts when the paragraph is wrong.
+  </p>
+  <p>
+    A model that has never seen your documents will still answer questions about them. It produces
+    fluent, well-formatted, correctly-toned prose that is simply invented. In casual use that is
+    annoying. In a compliance answer, a refund decision, or a clause interpretation, it is a liability
+    — and because the wrong answer reads exactly like the right one, nothing in the output signals
+    which you received.
+  </p>
+
+  <h3>Why retrieval alone does not fix it</h3>
+  <p>
+    Retrieval-augmented generation is the standard response: find relevant passages, put them in the
+    prompt, instruct the model to use only those. It helps considerably. It does not close the gap,
+    and the reasons are worth naming precisely, because each one is a design decision later in this
+    document.
+  </p>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--rose-dim);color:var(--rose)">Recall</span>Retrieval quietly misses</div>
+      <p class="tight">If the passage holding the answer never reaches the prompt, no amount of prompt
+      discipline recovers it. The model answers from its own weights instead — the exact failure the
+      retrieval was supposed to prevent. Recall is the ceiling on everything downstream.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--rose-dim);color:var(--rose)">Chunking</span>Boundaries destroy meaning</div>
+      <p class="tight">Slicing text every N tokens cuts sentences in half and mixes unrelated topics
+      into a single vector. A chunk reading "it grew 14% year over year" is unfindable by "revenue
+      growth" once the heading that gave it a subject is in a different chunk.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--rose-dim);color:var(--rose)">Queries</span>The question is a bad query</div>
+      <p class="tight">Users write "and what about the second one?" A raw message carries unresolved
+      pronouns, bundles two questions together, and is phrased as a question while the passage that
+      answers it is phrased as a statement.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--rose-dim);color:var(--rose)">Trust</span>"Use only the context" is a request</div>
+      <p class="tight">It is an instruction, not a constraint. Models blend retrieved facts with
+      remembered ones, cite passages that were never supplied, and swap a digit in a figure. Nothing
+      in a standard RAG pipeline checks the output against its own sources.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <span class="lbl">The premise</span>
+    <p>An answer you cannot check is worth less than a citation you can. LexoraAI is built on the
+    view that <strong>the verification step is not an optional extra on top of RAG — it is the part
+    that makes RAG usable</strong>. Everything else in the system exists to give that step something
+    good to work with.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 02 WHAT IT DOES ═══ -->
+<section>
+  <span class="h2-num">02 — What it does</span>
+  <h2>Answer, cite, verify — or decline</h2>
+  <p class="h2-sub">
+    Upload documents; ask questions in natural language; receive an answer where every claim points at
+    a page, along with the evidence for trusting it.
+  </p>
+
+  <h3>The two outcomes that matter</h3>
+  <p>
+    Most RAG systems have one output shape: an answer. LexoraAI has two, and the second is the point.
+  </p>
+
+<pre><code><span class="c">// The system found it, and can prove where.</span>
+Q: What does resolution VX-2291 authorise?
+A: Resolution VX-2291 authorises a share buyback of up to 15 million euros <span class="n">[S1]</span>.
+   <span class="g">✓ grounded · 90% confidence · hybrid retrieval · openai/gpt-oss-20b · 3.5s</span>
+   <span class="n">[S1]</span> Vertex Labs Annual Review › Governance · p.3 · dense+sparse
+
+<span class="c">// The system could not, and says so rather than guessing.</span>
+Q: Who is the CEO of Vertex Labs?
+A: I could not verify an answer to this in your uploaded documents. The passages
+   I retrieved touch on the topic but do not actually state the answer, so I
+   would rather tell you that than guess.
+   <span class="r">⚠ not found in sources · 15% confidence</span></code></pre>
+
+  <p>
+    The second response is not a failure mode being handled gracefully. It is a first-class result. A
+    system that never abstains is not accurate — it is hallucinating and hiding it, and the evaluation
+    harness measures abstention as its own metric for exactly that reason.
+  </p>
+
+  <div class="callout teal">
+    <span class="lbl">Design note — the trace</span>
+    <p>Every stage is timed and reports what it decided. When an answer is wrong, the trace says
+    whether retrieval missed the passage, the reranker buried it, or the model ignored it — three
+    problems with three different fixes that are otherwise indistinguishable from the outside.</p>
+  </div>
+
+  <h3>What a caller actually receives</h3>
+  <p>
+    Concretely, a query response reports not just the answer but how it was produced:
+  </p>
+
+<pre><code>{
+  <span class="s">"answer"</span>: <span class="s">"Q3 revenue was $48.2 million, growing 14.6% year over year [S1]."</span>,
+  <span class="s">"confidence"</span>: <span class="n">0.94</span>,          <span class="c">// how well each claim is supported by its citation</span>
+  <span class="s">"grounded"</span>: <span class="k">true</span>,            <span class="c">// every claim verified against a source</span>
+  <span class="s">"abstained"</span>: <span class="k">false</span>,          <span class="c">// true when support was too weak to answer</span>
+  <span class="s">"degraded"</span>: <span class="k">false</span>,           <span class="c">// true when a fallback path produced this</span>
+  <span class="s">"model"</span>: <span class="s">"openai/gpt-oss-20b"</span>,
+  <span class="s">"plan"</span>: {
+    <span class="s">"intent"</span>: <span class="s">"document_qa"</span>,
+    <span class="s">"standalone_question"</span>: <span class="s">"..."</span>,   <span class="c">// the history-resolved rewrite</span>
+    <span class="s">"search_queries"</span>: [<span class="s">"..."</span>],       <span class="c">// decomposed sub-queries</span>
+    <span class="s">"hyde_used"</span>: <span class="k">true</span>
+  },
+  <span class="s">"retrieval"</span>: { <span class="s">"mode"</span>: <span class="s">"hybrid"</span>, <span class="s">"dense_ok"</span>: <span class="k">true</span>, <span class="s">"sparse_ok"</span>: <span class="k">true</span>, <span class="s">"candidates"</span>: <span class="n">24</span> },
+  <span class="s">"grounding"</span>: { <span class="s">"support_ratio"</span>: <span class="n">1.0</span>, <span class="s">"unsupported_claims"</span>: <span class="n">0</span>, <span class="s">"invalid_citations"</span>: [] },
+  <span class="s">"trace"</span>: { <span class="s">"total_ms"</span>: <span class="n">3529</span>, <span class="s">"stages"</span>: { <span class="s">"plan"</span>: <span class="n">401</span>, <span class="s">"retrieve"</span>: <span class="n">1349</span>, <span class="s">"rerank"</span>: <span class="n">492</span>,
+                                           <span class="s">"generate"</span>: <span class="n">613</span>, <span class="s">"verify"</span>: <span class="n">373</span> } },
+  <span class="s">"sources"</span>: [
+    { <span class="s">"section"</span>: <span class="s">"FY24 Report › Revenue"</span>, <span class="s">"page_number"</span>: <span class="n">1</span>, <span class="s">"cited"</span>: <span class="k">true</span>,
+      <span class="s">"relevance_score"</span>: <span class="n">1.0</span>, <span class="s">"dense_score"</span>: <span class="n">0.78</span>, <span class="s">"sparse_score"</span>: <span class="n">1.0</span>,
+      <span class="s">"rerank_score"</span>: <span class="n">1.0</span>, <span class="s">"retrievers"</span>: [<span class="s">"dense"</span>, <span class="s">"sparse"</span>] }
+  ]
+}</code></pre>
+
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 03 ARCHITECTURE ═══ -->
+<section>
+  <span class="h2-num">03 — Architecture</span>
+  <h2>Two paths through one index</h2>
+  <p class="h2-sub">
+    Ingestion writes to two indexes that answer different kinds of question. Answering reads from
+    both, fuses them, then narrows.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 760 560" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7684"/>
+        </marker>
+        <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f4fd8"/>
+        </marker>
+      </defs>
+
+      <!-- lane backgrounds -->
+      <rect x="0" y="0" width="358" height="560" rx="6" fill="#f6f7f9"/>
+      <rect x="402" y="0" width="358" height="560" rx="6" fill="#f6f7f9"/>
+
+      <text x="18" y="26" font-size="11" font-weight="700" fill="#6b7684" letter-spacing="1.6">INGESTION</text>
+      <text x="420" y="26" font-size="11" font-weight="700" fill="#6b7684" letter-spacing="1.6">ANSWERING</text>
+
+      <!-- ========================= INGESTION ========================= -->
+      <g>
+        <rect x="18" y="42" width="322" height="44" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="32" y="62" font-size="13" font-weight="700" fill="#14181f">PDF · DOCX · TXT · MD</text>
+        <text x="32" y="78" font-size="11" fill="#6b7684">up to 20 files, 50 MB each</text>
+
+        <line x1="179" y1="86" x2="179" y2="104" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="18" y="106" width="322" height="52" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="32" y="126" font-size="13" font-weight="700" fill="#14181f">parser.py</text>
+        <text x="32" y="142" font-size="11" fill="#3d4653">headings · tables · page numbers</text>
+        <text x="32" y="154" font-size="11" fill="#6b7684">strips running headers, repairs hyphenation</text>
+
+        <line x1="179" y1="158" x2="179" y2="176" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="18" y="178" width="322" height="52" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="32" y="198" font-size="13" font-weight="700" fill="#14181f">chunker.py</text>
+        <text x="32" y="214" font-size="11" fill="#3d4653">semantic breakpoints</text>
+        <text x="32" y="226" font-size="11" fill="#6b7684">+ contextual headers, token bounds, overlap</text>
+
+        <line x1="179" y1="230" x2="179" y2="248" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="18" y="250" width="322" height="52" rx="4" fill="#eaf0ff" stroke="#1f4fd8"/>
+        <text x="32" y="270" font-size="13" font-weight="700" fill="#1f4fd8">embedder.py</text>
+        <text x="32" y="286" font-size="11" fill="#1f4fd8">jina-embeddings-v4 · retrieval.passage</text>
+        <text x="32" y="298" font-size="11" fill="#4a6fd8">1024-dim · LRU cached · batched · bisecting</text>
+
+        <!-- split to two indexes -->
+        <path d="M 179 302 L 179 320 L 96 320 L 96 336" fill="none" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+        <path d="M 179 302 L 179 320 L 262 320 L 262 336" fill="none" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="18" y="338" width="156" height="58" rx="4" fill="#fff" stroke="#14181f" stroke-width="1.4"/>
+        <text x="32" y="358" font-size="12" font-weight="700" fill="#14181f">vectorstore.py</text>
+        <text x="32" y="374" font-size="11" fill="#3d4653">ChromaDB</text>
+        <text x="32" y="388" font-size="11" fill="#6b7684">cosine ANN, persistent</text>
+
+        <rect x="184" y="338" width="156" height="58" rx="4" fill="#fff" stroke="#14181f" stroke-width="1.4"/>
+        <text x="198" y="358" font-size="12" font-weight="700" fill="#14181f">keyword.py</text>
+        <text x="198" y="374" font-size="11" fill="#3d4653">BM25</text>
+        <text x="198" y="388" font-size="11" fill="#6b7684">exact-token recall</text>
+
+        <line x1="262" y1="396" x2="262" y2="416" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+        <rect x="18" y="418" width="322" height="46" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="32" y="438" font-size="12" font-weight="700" fill="#14181f">database.py — documents + chunks</text>
+        <text x="32" y="454" font-size="11" fill="#6b7684">chunk text mirrored so BM25 survives a restart</text>
+
+        <rect x="18" y="478" width="322" height="62" rx="4" fill="#fdf3e0" stroke="#e0c48a"/>
+        <text x="32" y="497" font-size="11" font-weight="700" fill="#9a6400">STATE ON THE DOCUMENT ROW</text>
+        <text x="32" y="513" font-size="11" fill="#7a5200">pending → parsing → chunking → embedding →</text>
+        <text x="32" y="527" font-size="11" fill="#7a5200">indexing → ready · or error, with the stage named</text>
+      </g>
+
+      <!-- ========================= ANSWERING ========================= -->
+      <g>
+        <rect x="420" y="42" width="322" height="36" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="434" y="65" font-size="13" font-weight="700" fill="#14181f">Question  +  chat history</text>
+
+        <line x1="581" y1="78" x2="581" y2="96" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="420" y="98" width="322" height="58" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="434" y="118" font-size="13" font-weight="700" fill="#14181f">reasoning.py</text>
+        <text x="434" y="134" font-size="11" fill="#3d4653">route · rewrite · decompose · HyDE</text>
+        <text x="434" y="148" font-size="11" fill="#6b7684">chitchat and meta skip retrieval entirely</text>
+
+        <path d="M 742 127 L 752 127 L 752 366 L 742 366" fill="none" stroke="#9aa4b2" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+        <text x="744" y="247" font-size="9" fill="#8b95a3" transform="rotate(-90 744 247)" text-anchor="middle">skips retrieval</text>
+
+        <line x1="581" y1="156" x2="581" y2="174" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="420" y="176" width="322" height="70" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="434" y="196" font-size="13" font-weight="700" fill="#14181f">retriever.py</text>
+        <text x="434" y="212" font-size="11" fill="#3d4653">dense (retrieval.query) ∥ sparse (BM25)</text>
+        <text x="434" y="226" font-size="11" fill="#3d4653">→ reciprocal rank fusion → MMR</text>
+        <text x="434" y="240" font-size="11" fill="#6b7684">either arm alone still answers</text>
+
+        <!-- index feeds -->
+        <path d="M 96 396 L 96 412 L 384 412 L 384 205 L 418 205" fill="none" stroke="#9aa4b2" stroke-width="1.2" marker-end="url(#ar)"/>
+        <path d="M 262 468 L 262 470 L 372 470 L 372 218 L 418 218" fill="none" stroke="#9aa4b2" stroke-width="1.2" marker-end="url(#ar)"/>
+
+        <line x1="581" y1="246" x2="581" y2="264" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="420" y="266" width="322" height="52" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="434" y="286" font-size="13" font-weight="700" fill="#14181f">reranker.py</text>
+        <text x="434" y="302" font-size="11" fill="#3d4653">listwise LLM / cross-encoder / heuristic</text>
+        <text x="434" y="314" font-size="11" fill="#6b7684">40 candidates → the 6 that answer this question</text>
+
+        <line x1="581" y1="318" x2="581" y2="336" stroke="#6b7684" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="420" y="338" width="322" height="56" rx="4" fill="#fff" stroke="#dfe3e9"/>
+        <text x="434" y="358" font-size="13" font-weight="700" fill="#14181f">generator.py</text>
+        <text x="434" y="374" font-size="11" fill="#3d4653">numbered passages in, [S#]-cited answer out</text>
+        <text x="434" y="388" font-size="11" fill="#6b7684">extractive fallback when the LLM is unreachable</text>
+
+        <line x1="581" y1="394" x2="581" y2="412" stroke="#1f4fd8" stroke-width="1.8" marker-end="url(#ara)"/>
+
+        <rect x="420" y="414" width="322" height="70" rx="4" fill="#e4f4f2" stroke="#0e7c72" stroke-width="1.4"/>
+        <text x="434" y="434" font-size="13" font-weight="700" fill="#0e7c72">grounding.py</text>
+        <text x="434" y="450" font-size="11" fill="#0e6a61">1 · strip fabricated citations</text>
+        <text x="434" y="464" font-size="11" fill="#0e6a61">2 · score every claim against its own sources</text>
+        <text x="434" y="478" font-size="11" fill="#0e6a61">3 · abstain when support falls under the floor</text>
+
+        <line x1="581" y1="484" x2="581" y2="500" stroke="#0e7c72" stroke-width="1.8" marker-end="url(#ar)"/>
+
+        <rect x="420" y="502" width="322" height="38" rx="4" fill="#14181f"/>
+        <text x="434" y="519" font-size="12" font-weight="700" fill="#ffffff">Answer · citations · confidence · trace</text>
+        <text x="434" y="533" font-size="10.5" fill="#9aa4b2">…or an honest abstention</text>
+      </g>
+    </svg>
+    <figcaption>
+      <b>Figure 1 — System architecture.</b> Ingestion (left) writes chunk vectors to ChromaDB and
+      chunk text to SQL, from which BM25 is rebuilt on start-up. Answering (right) reads both indexes,
+      fuses their rankings, narrows to a handful of passages, then checks the generated answer back
+      against those same passages before returning it. Dashed lines are the paths that skip a stage.
+    </figcaption>
+  </figure>
+
+  <h3>Why the chunk text is stored twice</h3>
+  <p>
+    A vector store cannot serve lexical search — it holds vectors, and BM25 needs words. So every
+    chunk's text is mirrored into a SQL <code>chunks</code> table. That single decision buys three
+    things: BM25 rebuilds from durable storage after a restart, source snippets are returned without a
+    second lookup, and the embedding model can be changed without re-uploading anything, because
+    <code>scripts/reindex.py</code> re-embeds from the stored text.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 04 INGESTION ═══ -->
+<section>
+  <span class="h2-num">04 — Ingestion</span>
+  <h2>Everything downstream inherits the chunks</h2>
+  <p class="h2-sub">
+    Retrieval quality is capped by chunk quality, and chunk quality is capped by parse quality. Both
+    stages are treated as first-class rather than as glue.
+  </p>
+
+  <h3>Parsing: keep the structure, drop the noise</h3>
+  <p>
+    A naive parser flattens a document into a wall of text, discarding the two signals retrieval cares
+    about most: <em>where</em> a passage sits and <em>what section</em> it belongs to. LexoraAI's
+    parser emits typed blocks instead — each tagged with a page number, a kind
+    (<code>heading</code> / <code>body</code> / <code>table</code> / <code>list</code>) and its
+    heading breadcrumb — while removing the artefacts that otherwise end up inside embeddings:
+  </p>
+  <ul>
+    <li><strong>Repeated running headers and footers.</strong> Detected by frequency across pages, so
+    "Confidential — Internal Use Only" does not appear in forty separate chunks.</li>
+    <li><strong>Line-break hyphenation.</strong> <code>compre-\nhensive</code> is rejoined, so the
+    token that matters is actually present for BM25.</li>
+    <li><strong>Heading detection from fonts and styles.</strong> PyMuPDF exposes size and weight;
+    python-docx exposes style names. Both feed the same block model.</li>
+  </ul>
+
+  <h3>Chunking: semantic breakpoints and contextual headers</h3>
+  <p>
+    Slicing the token stream every <em>N</em> tokens is the single biggest source of bad retrieval.
+    Two mechanisms replace it.
+  </p>
+
+
+  <ol class="steps">
+    <li>
+      <b>Semantic breakpoints</b>
+      A boundary is placed where consecutive-sentence similarity drops below the 88th-percentile
+      threshold — where the topic actually changes, rather than where the token counter ran out.
+      Headings and tables are hard boundaries. Groups are then token-bounded: oversized ones split,
+      undersized ones merged into a neighbour, and a sentence overlap stitched back on so no answer
+      falls through a seam.
+    </li>
+    <li>
+      <b>Contextual headers</b>
+      Each chunk is <em>embedded</em> with its document title and heading breadcrumb prepended, while
+      the <em>stored</em> text stays clean. A chunk reading "it grew 14% year over year" becomes
+      findable by "revenue growth" because its embedded form carries
+      <code>[Document: FY24 Report | Section: Revenue | Page: 12]</code>. The user never sees the
+      header; the retriever always does.
+    </li>
+  </ol>
+
+  <div class="callout amber">
+    <span class="lbl">Failure is reported per stage</span>
+    <p>Ingestion runs in the background and writes its current stage onto the document row —
+    <code>parsing → chunking → embedding → indexing → ready</code>. When something breaks, the API
+    reports which stage broke rather than a generic error, and <code>GET /documents/{id}</code> can be
+    polled for live progress.</p>
+  </div>
+
+  <h3>Configuration that matters</h3>
+  <table class="compact">
+    <thead><tr><th style="width:38%">Setting</th><th style="width:14%">Default</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td class="k">CHUNK_STRATEGY</td><td class="num">semantic</td><td>Semantic breakpoints, or <code>recursive</code> for purely structural grouping</td></tr>
+      <tr><td class="k">CHUNK_SIZE_TOKENS</td><td class="num">420</td><td>Upper bound per chunk; larger favours context, smaller favours precision</td></tr>
+      <tr><td class="k">CHUNK_OVERLAP_TOKENS</td><td class="num">64</td><td>Sentence overlap carried across a boundary, never across a section</td></tr>
+      <tr><td class="k">SEMANTIC_BREAKPOINT_PERCENTILE</td><td class="num">88</td><td>Higher splits less often, producing larger and more topical chunks</td></tr>
+      <tr><td class="k">CONTEXTUAL_HEADERS</td><td class="num">True</td><td>Prepend document and section to the embedded text only</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 05 EMBEDDINGS ═══ -->
+<section>
+  <span class="h2-num">05 — Embeddings</span>
+  <h2>Questions and passages are not the same kind of text</h2>
+  <p class="h2-sub">
+    Embeddings are served by Jina AI's <code>jina-embeddings-v4</code>, chosen for two properties that
+    a plain sentence encoder does not offer.
+  </p>
+
+  <p>
+    Groq — the generation provider — serves chat completions only; it has no embeddings API. That
+    forces an explicit choice for the embedding half of the system, and the choice is
+    <code>jina-embeddings-v4</code> called over HTTP, with a local ONNX model retained as an offline
+    fallback.
+  </p>
+
+  <h3>Typed tasks: the asymmetry most pipelines lose</h3>
+  <p>
+    A question and the passage answering it are worded differently. Embedding them identically is a
+    quiet, extremely common cause of lost recall. <code>jina-embeddings-v4</code> exposes a typed
+    <code>task</code> parameter, and LexoraAI carries a <em>role</em> through every embedding call
+    that maps directly onto it:
+  </p>
+
+  <table class="compact">
+    <thead><tr><th style="width:22%">Role</th><th style="width:26%">Jina task</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td class="k">query</td><td class="mono">retrieval.query</td><td>The user's question, its decomposed sub-queries, and the HyDE probe</td></tr>
+      <tr><td class="k">passage</td><td class="mono">retrieval.passage</td><td>Every indexed chunk, embedded with its contextual header</td></tr>
+      <tr><td class="k">similarity</td><td class="mono">text-matching</td><td>Symmetric comparisons: sentence-to-sentence during semantic chunking, and claim-against-evidence during grounding</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    The role is part of the cache key, so the same sentence embedded as a query and as a passage
+    cannot collide. The local <code>bge-small</code> fallback maps the same roles onto its instruction
+    prefix; the ONNX last resort ignores them. Callers never branch on provider.
+  </p>
+
+  <h3>Matryoshka dimensions: a size dial, not a model swap</h3>
+  <p>
+    The model is Matryoshka-trained: its 2048-dimension output can be truncated to any shorter prefix
+    and remains a valid embedding. <code>JINA_EMBED_DIMENSIONS=1024</code> therefore halves index size
+    and cosine cost for roughly one percent of retrieval quality — no second model, no re-tuning, one
+    environment variable.
+  </p>
+
+  <div class="grid3">
+    <div class="card wash">
+      <div class="card-title">Cached</div>
+      <p class="tight">A content-addressed LRU sits in front of the provider. Re-uploads, HyDE probes,
+      MMR passes and grounding claims never pay for the same text twice.</p>
+    </div>
+    <div class="card wash">
+      <div class="card-title">Batched</div>
+      <p class="tight">Requests are grouped to <code>EMBEDDING_BATCH_SIZE</code>, with retries on 429
+      and 5xx using exponential backoff and jitter.</p>
+    </div>
+    <div class="card wash">
+      <div class="card-title">Bisecting</div>
+      <p class="tight">A failing batch is split in half recursively until the bad input is isolated,
+      so one pathological chunk cannot sink an entire upload.</p>
+    </div>
+  </div>
+
+  <h3>Changing the model safely</h3>
+  <p>
+    Vectors are only comparable to vectors from the same model. A silent model swap either errors on a
+    dimension mismatch or, worse, returns nonsense at the same dimension. The vector store therefore
+    writes an <em>embedding fingerprint</em> — provider, model and dimension — on first write and
+    compares it on every later one, logging loudly on a mismatch. Recovery never requires a re-upload:
+  </p>
+
+<pre><code><span class="c"># re-embed every stored chunk with whatever EMBEDDING_PROVIDER now points at</span>
+PYTHONPATH=. python scripts/reindex.py --drop      <span class="c"># rebuild the index</span>
+PYTHONPATH=. python scripts/reindex.py --dry-run   <span class="c"># preview the work first</span></code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 06 RETRIEVAL ═══ -->
+<section>
+  <span class="h2-num">06 — Query planning</span>
+  <h2>The question is not the search query</h2>
+  <p class="h2-sub">
+    Retrieval quality is capped by whatever it is handed. One planning call reshapes the user's message
+    into something worth searching with.
+  </p>
+
+
+  <p>
+    A raw user message carries pronouns that only resolve against the conversation, bundles two
+    questions into one, and is phrased as a question while the passage that answers it is phrased as a
+    statement. A single planning call to the LLM fixes all of that at once, returning a structured plan:
+  </p>
+  <table class="compact">
+    <thead><tr><th style="width:28%">Field</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td class="k">intent</td><td>Routes the request. <code>chitchat</code> and <code>meta</code> ("what documents do I have?") skip retrieval entirely instead of hallucinating over noise</td></tr>
+      <tr><td class="k">standalone_question</td><td>Resolves pronouns against chat history, so "and when does it expire?" becomes a self-contained query</td></tr>
+      <tr><td class="k">search_queries</td><td>Decomposes into up to three keyword-shaped sub-queries, phrased the way a passage would be worded rather than as a question</td></tr>
+      <tr><td class="k">hypothetical_answer</td><td>A <strong>HyDE</strong> probe — an invented answer embeds far closer to the real passage than the question does</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    Two safety nets keep the planner from becoming a single point of failure: obvious small talk is
+    caught by a regex fast-path before any network call, and if the planning call fails, the pipeline
+    falls back to a plan built from the raw question. Quality drops; answering continues.
+  </p>
+
+  <h3>A worked example</h3>
+  <p>
+    The hard case is the follow-up. The planner is given one explicit test — <em>does the message name
+    its own subject?</em> If it does, it is a new question and is copied almost verbatim; if it is only
+    a pronoun or a fragment, the missing subject is pulled from the history. That single rule prevents
+    the classic failure where "and what about expenses?" becomes "What does STD-441 say about
+    expenses?" and retrieves the wrong document entirely.
+  </p>
+
+<pre><code><span class="c">// history</span>  user: <span class="s">"What does policy STD-441 require?"</span>
+<span class="c">// message</span>  user: <span class="s">"and when does it expire?"</span>          <span class="c">← pronoun only</span>
+
+{
+  <span class="s">"intent"</span>: <span class="s">"document_qa"</span>,
+  <span class="s">"standalone_question"</span>: <span class="s">"When does policy STD-441 expire?"</span>,
+  <span class="s">"search_queries"</span>: [<span class="s">"STD-441 expiry date"</span>, <span class="s">"policy STD-441 remains in force until"</span>],
+  <span class="s">"hypothetical_answer"</span>: <span class="s">"Policy STD-441 remains in force until 31 December 2026,</span>
+                          <span class="s">after which it must be reviewed and reissued."</span>,
+  <span class="s">"needs_retrieval"</span>: <span class="k">true</span>
+}</code></pre>
+
+  <p>
+    Note what the plan is optimised for. <code>search_queries</code> are phrased as a passage would
+    word them, not as questions. <code>hypothetical_answer</code> is deliberately invented — it is
+    never shown to anyone, it exists only to give the dense retriever a probe that sits in the same
+    region of vector space as the real passage.
+  </p>
+
+</section>
+
+<!-- ═══════════════════════════════════════ 07 RETRIEVAL + RERANK ═══ -->
+<section>
+  <span class="h2-num">07 — Retrieval &amp; reranking</span>
+  <h2>Two retrievers, fused by rank, then narrowed</h2>
+  <p class="h2-sub">
+    Dense vectors are strong at paraphrase and weak at exact tokens. BM25 is the exact inverse.
+    Running both is why hybrid retrieval beats either alone.
+  </p>
+
+  <p>
+    Ask for <code>STD-441</code> or <code>VX-2291</code> and embeddings will cheerfully return the
+    semantically adjacent paragraph — it is <em>about</em> the same topic. BM25 returns the one that
+    contains the string. Ask "how do I get my money back" and BM25 finds nothing, because the document
+    says "refund". Neither retriever is redundant.
+  </p>
+
+  <figure>
+    <svg viewBox="-7 -7 776 232" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7684"/>
+        </marker>
+      </defs>
+
+      <rect x="0" y="60" width="120" height="52" rx="4" fill="#fff" stroke="#dfe3e9"/>
+      <text x="12" y="80" font-size="12" font-weight="700" fill="#14181f">Planned query</text>
+      <text x="12" y="96" font-size="10.5" fill="#6b7684">+ sub-queries</text>
+      <text x="12" y="108" font-size="10.5" fill="#6b7684">+ HyDE probe</text>
+
+      <path d="M 120 74 L 152 74 L 152 42 L 176 42" fill="none" stroke="#6b7684" stroke-width="1.3" marker-end="url(#ar2)"/>
+      <path d="M 120 98 L 152 98 L 152 148 L 176 148" fill="none" stroke="#6b7684" stroke-width="1.3" marker-end="url(#ar2)"/>
+
+      <rect x="178" y="16" width="180" height="52" rx="4" fill="#eaf0ff" stroke="#1f4fd8"/>
+      <text x="190" y="36" font-size="12" font-weight="700" fill="#1f4fd8">Dense — ChromaDB</text>
+      <text x="190" y="52" font-size="10.5" fill="#4a6fd8">cosine ANN over v4 vectors</text>
+      <text x="190" y="63" font-size="10.5" fill="#4a6fd8">catches paraphrase</text>
+
+      <rect x="178" y="122" width="180" height="52" rx="4" fill="#e4f4f2" stroke="#0e7c72"/>
+      <text x="190" y="142" font-size="12" font-weight="700" fill="#0e7c72">Sparse — BM25</text>
+      <text x="190" y="158" font-size="10.5" fill="#0e6a61">tokenised chunk corpus</text>
+      <text x="190" y="169" font-size="10.5" fill="#0e6a61">catches STD-441, VX-2291</text>
+
+      <path d="M 358 42 L 392 42 L 392 88 L 414 88" fill="none" stroke="#6b7684" stroke-width="1.3" marker-end="url(#ar2)"/>
+      <path d="M 358 148 L 392 148 L 392 100 L 414 100" fill="none" stroke="#6b7684" stroke-width="1.3" marker-end="url(#ar2)"/>
+
+      <rect x="416" y="58" width="150" height="72" rx="4" fill="#fff" stroke="#14181f" stroke-width="1.4"/>
+      <text x="428" y="78" font-size="12" font-weight="700" fill="#14181f">RRF fusion</text>
+      <text x="428" y="95" font-size="10.5" fill="#3d4653">score = Σ 1 / (k + rank)</text>
+      <text x="428" y="109" font-size="10.5" fill="#6b7684">k = 60 · rank-based, so the</text>
+      <text x="428" y="121" font-size="10.5" fill="#6b7684">two score scales never meet</text>
+
+      <line x1="566" y1="94" x2="596" y2="94" stroke="#6b7684" stroke-width="1.3" marker-end="url(#ar2)"/>
+
+      <rect x="598" y="58" width="162" height="72" rx="4" fill="#fff" stroke="#14181f" stroke-width="1.4"/>
+      <text x="610" y="78" font-size="12" font-weight="700" fill="#14181f">MMR</text>
+      <text x="610" y="95" font-size="10.5" fill="#3d4653">λ = 0.65</text>
+      <text x="610" y="109" font-size="10.5" fill="#6b7684">trades a little relevance for</text>
+      <text x="610" y="121" font-size="10.5" fill="#6b7684">coverage — no near-duplicates</text>
+
+      <line x1="679" y1="130" x2="679" y2="150" stroke="#6b7684" stroke-width="1.3" marker-end="url(#ar2)"/>
+      <rect x="598" y="152" width="162" height="34" rx="4" fill="#14181f"/>
+      <text x="610" y="173" font-size="11.5" font-weight="700" fill="#fff">top-k → reranker</text>
+
+      <text x="0" y="209" font-size="10.5" fill="#6b7684">Each arm is independently fault-tolerant: if the vector store is down, BM25 still answers — and the reverse.</text>
+    </svg>
+    <figcaption>
+      <b>Figure 2 — Hybrid retrieval.</b> Reciprocal Rank Fusion combines the two rankings by position
+      rather than by score, so a cosine similarity and a BM25 score never have to be calibrated against
+      one another. Passages found by <em>both</em> arms rise above passages found by only one.
+    </figcaption>
+  </figure>
+
+  <h3>Reranking: recall in, precision out</h3>
+  <p>
+    Retrieval optimises recall — pull 20 to 40 plausible chunks. Reranking optimises precision — decide
+    which five or six actually answer <em>this</em> question, using a model that sees query and passage
+    together rather than comparing two independent vectors. Fewer, better passages in the prompt is the
+    cheapest hallucination reduction available. Three modes degrade into one another:
+  </p>
+  <table class="compact">
+    <thead><tr><th style="width:24%">Mode</th><th style="width:22%">Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="k">llm</td><td>~300 ms, no extra RAM</td><td>Listwise scoring by the Groq model. Default — free-tier instances have 512 MB</td></tr>
+      <tr><td class="k">cross_encoder</td><td>~90 MB RAM, offline</td><td>Local ONNX cross-encoder; no network dependency at query time</td></tr>
+      <tr><td class="k">heuristic</td><td>Free, no I/O</td><td>Lexical overlap, coverage and retrieval prior. Always available</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 08 GROUNDING ═══ -->
+<section>
+  <span class="h2-num">08 — Grounding</span>
+  <h2>Checking the output instead of trusting the prompt</h2>
+  <p class="h2-sub">
+    Telling a model "only use the context" reduces hallucination. It does not eliminate it. This is the
+    stage that distinguishes LexoraAI from a standard RAG pipeline.
+  </p>
+
+  <ol class="steps">
+    <li>
+      <b>Citation validity</b>
+      Every <code>[S#]</code> marker in the answer is parsed. Any marker pointing at a passage number
+      that was never in the prompt is a <em>fabricated citation</em> — the most damaging failure mode
+      available, because it looks verified. Those are stripped before the answer is returned.
+    </li>
+    <li>
+      <b>Per-claim support</b>
+      The answer is split into claim sentences, and each is scored against <em>its own cited
+      passages</em> — not against the pooled context, which would let one well-supported sentence
+      launder an unsupported one. The signal is hybrid: embedding cosine catches paraphrase, while
+      weighted lexical overlap leaning on numbers, dates and proper nouns catches the digit-swap error
+      that embeddings miss entirely. "€15 million" and "€51 million" are neighbours in vector space.
+    </li>
+    <li>
+      <b>Optional LLM adjudication</b>
+      Claims landing in the ambiguous band between clearly supported and clearly unsupported can be
+      sent for a second opinion from an NLI-style verifier call, enabled per request.
+    </li>
+    <li>
+      <b>Abstention</b>
+      If overall support falls under <code>ABSTAIN_THRESHOLD</code>, the answer is replaced with an
+      honest statement that it could not be verified, rather than shipped in a confident tone. The
+      confidence figure returned to the caller is this support score.
+    </li>
+  </ol>
+
+  <div class="callout teal">
+    <span class="lbl">Fails open in the safe direction</span>
+    <p>If verification itself breaks — the embedding provider is unreachable, the verifier call times
+    out — the answer is returned unmodified and flagged <code>verified: false</code>, rather than
+    dropped. The caller is told the check did not run; they are never told an unchecked answer passed.</p>
+  </div>
+
+  <h3>Grounding thresholds</h3>
+  <table class="compact">
+    <thead><tr><th style="width:38%">Setting</th><th style="width:14%">Default</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td class="k">ENABLE_GROUNDING_CHECK</td><td class="num">True</td><td>Master switch for the whole verification stage</td></tr>
+      <tr><td class="k">GROUNDING_MIN_SUPPORT</td><td class="num">0.42</td><td>Per-claim threshold below which a claim counts as unsupported</td></tr>
+      <tr><td class="k">ABSTAIN_THRESHOLD</td><td class="num">0.25</td><td>Answer-level confidence floor; below it the system declines</td></tr>
+      <tr><td class="k">STRIP_INVALID_CITATIONS</td><td class="num">True</td><td>Remove <code>[S#]</code> markers that point at passages never supplied</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 09 RELIABILITY ═══ -->
+<section>
+  <span class="h2-num">09 — Reliability</span>
+  <h2>Every dependency is assumed to fail</h2>
+  <p class="h2-sub">
+    The system runs on a free-tier LLM API, a hosted embeddings API and a 512 MB instance. Degradation
+    is designed rather than discovered.
+  </p>
+
+  <table>
+    <thead><tr><th style="width:38%">Failure</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Model rate-limited (429)</td><td>Retries with exponential backoff, honouring Groq's own <code>retry-after</code> hint</td></tr>
+      <tr><td class="k">Model down or decommissioned</td><td>Fails over to the next model in the configured chain</td></tr>
+      <tr><td class="k">Repeated LLM failures</td><td>A circuit breaker opens; calls fail fast for a cooldown, then probe</td></tr>
+      <tr><td class="k">LLM completely unreachable</td><td><strong>Extractive fallback</strong> — the top passages are returned verbatim with their sources. Strictly worse than a written answer; still true, still cited, and better than a 502</td></tr>
+      <tr><td class="k">Query planner fails</td><td>Falls back to the raw question. Quality drops, answering continues</td></tr>
+      <tr><td class="k">Reranker fails</td><td>Degrades LLM → cross-encoder → heuristic lexical scorer</td></tr>
+      <tr><td class="k">Jina rate-limits or 5xx</td><td>Retried with exponential backoff and jitter</td></tr>
+      <tr><td class="k">Embedding provider missing</td><td>Degrades Jina → fastembed → Chroma's bundled MiniLM → OpenAI</td></tr>
+      <tr><td class="k">One bad input in a batch</td><td>The batch is bisected so a single item cannot sink the rest</td></tr>
+      <tr><td class="k">Vector store or BM25 down</td><td>The other retrieval arm still answers</td></tr>
+      <tr><td class="k">Embedding model changed</td><td>Fingerprint mismatch is detected and logged loudly instead of silently poisoning retrieval; <code>scripts/reindex.py</code> re-embeds from stored chunk text</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Observability</h3>
+  <p>
+    Three endpoints exist so that a misbehaving deployment can be diagnosed without attaching a
+    debugger: <code>/health</code> is a fast liveness probe, <code>/health/deep</code> loads the
+    embedding model and reports every component including circuit-breaker state, and
+    <code>/stats</code> summarises the corpus and the active pipeline configuration. Every query
+    response carries the per-stage trace shown in section 02.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 10 TECH STACK ═══ -->
+<section>
+  <span class="h2-num">10 — Tech stack</span>
+  <h2>What each choice buys</h2>
+  <p class="h2-sub">
+    Selected for a system that must run credibly on a free tier while remaining honest about its own
+    output.
+  </p>
+
+  <table>
+    <thead><tr><th style="width:20%">Layer</th><th style="width:30%">Choice</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td class="k">API</td><td><strong>FastAPI</strong> + Uvicorn</td><td>Async, Pydantic validation, auto-generated OpenAPI docs at <code>/docs</code></td></tr>
+      <tr><td class="k">LLM</td><td><strong>Groq</strong> <code>openai/gpt-oss-20b</code></td><td>Very fast inference; <code>gpt-oss-120b</code> and <code>qwen3.6-27b</code> configured as fallbacks</td></tr>
+      <tr><td class="k">Embeddings</td><td><strong>Jina</strong> <code>jina-embeddings-v4</code></td><td>Multilingual, long-context, typed query/passage tasks, Matryoshka dimensions. <code>bge-small</code> on ONNX is the offline fallback</td></tr>
+      <tr><td class="k">Dense index</td><td><strong>ChromaDB</strong></td><td>Persistent cosine ANN with metadata filtering; no separate service to run</td></tr>
+      <tr><td class="k">Sparse index</td><td><strong>rank-bm25</strong></td><td>Exact-token recall, rebuilt in memory from SQL on start-up</td></tr>
+      <tr><td class="k">Reranking</td><td>Groq listwise / ONNX cross-encoder</td><td>Listwise costs no extra RAM; the cross-encoder runs fully offline</td></tr>
+      <tr><td class="k">Database</td><td><strong>SQLAlchemy</strong> — SQLite or PostgreSQL</td><td>Document metadata plus the durable BM25 corpus. SQLite locally, Postgres in Compose</td></tr>
+      <tr><td class="k">Parsing</td><td><strong>PyMuPDF</strong>, python-docx, tiktoken</td><td>Fonts and styles drive heading detection; tiktoken gives a universal token proxy</td></tr>
+      <tr><td class="k">Frontend</td><td>Static HTML + optional Gradio</td><td>No build step, no bundler, no node_modules</td></tr>
+      <tr><td class="k">Packaging</td><td>Docker, docker-compose, Render</td><td>Fallback embedding model baked into the image to avoid cold-start downloads</td></tr>
+      <tr><td class="k">Testing</td><td><strong>pytest</strong> — 142 tests</td><td>No API key and no network required; providers are stubbed at the boundary</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Repository map</h3>
+  <div class="grid2">
+    <div class="tree">LexoraAI/
+├── app/
+│   ├── <b>main.py</b>               <i>app, lifespan, errors</i>
+│   ├── <b>config.py</b>             <i>every knob, env-driven</i>
+│   ├── <b>database.py</b>           <i>documents + chunks</i>
+│   ├── rag/
+│   │   ├── <b>parser.py</b>         <i>→ structured blocks</i>
+│   │   ├── <b>chunker.py</b>        <i>→ context-headed chunks</i>
+│   │   ├── <b>embedder.py</b>       <i>→ vectors (Jina v4)</i>
+│   │   ├── <b>vectorstore.py</b>    <i>dense index (Chroma)</i>
+│   │   ├── <b>keyword.py</b>        <i>sparse index (BM25)</i>
+│   │   ├── <b>retriever.py</b>      <i>hybrid → RRF → MMR</i>
+│   │   ├── <b>reranker.py</b>       <i>precision pass</i>
+│   │   ├── <b>reasoning.py</b>      <i>plan · rewrite · HyDE</i>
+│   │   ├── <b>generator.py</b>      <i>cited answers</i>
+│   │   ├── <b>grounding.py</b>      <i>verification</i>
+│   │   ├── <b>llm.py</b>            <i>Groq client + breaker</i>
+│   │   ├── <b>prompts.py</b>        <i>all prompts</i>
+│   │   └── <b>pipeline.py</b>       <i>orchestrator</i></div>
+    <div class="tree">│   └── api/
+│       ├── <b>router.py</b>         <i>mounts /api/v1</i>
+│       ├── <b>upload.py</b>         <i>ingestion endpoint</i>
+│       ├── <b>query.py</b>          <i>question answering endpoint</i>
+│       ├── <b>documents.py</b>      <i>list / get / delete</i>
+│       └── <b>system.py</b>         <i>health, deep health, stats</i>
+├── scripts/
+│   ├── <b>evaluate.py</b>           <i>labelled evaluation harness</i>
+│   └── <b>reindex.py</b>            <i>re-embed after a model change</i>
+├── <b>static/index.html</b>         <i>web UI (no build step)</i>
+├── <b>frontend.py</b>               <i>optional Gradio UI</i>
+└── <b>tests/</b>                    <i>142 tests</i></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 11 API + RUN ═══ -->
+<section>
+  <span class="h2-num">11 — Interface &amp; operation</span>
+  <h2>Endpoints and deployment</h2>
+
+  <h3>API surface</h3>
+  <table class="compact">
+    <thead><tr><th style="width:12%">Method</th><th style="width:34%">Endpoint</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td class="k mono">GET</td><td class="mono">/api/v1/health</td><td>Fast liveness probe</td></tr>
+      <tr><td class="k mono">GET</td><td class="mono">/api/v1/health/deep</td><td>Per-component status: circuit breaker, embedder, indexes</td></tr>
+      <tr><td class="k mono">GET</td><td class="mono">/api/v1/stats</td><td>Corpus size and active pipeline configuration</td></tr>
+      <tr><td class="k mono">POST</td><td class="mono">/api/v1/upload</td><td>Upload PDF / DOCX / TXT / MD — up to 20 at once, processed in the background</td></tr>
+      <tr><td class="k mono">POST</td><td class="mono">/api/v1/query</td><td>Ask a question, optionally scoped to specific documents and carrying chat history</td></tr>
+      <tr><td class="k mono">GET</td><td class="mono">/api/v1/documents</td><td>List documents</td></tr>
+      <tr><td class="k mono">GET</td><td class="mono">/api/v1/documents/{id}</td><td>One document, including live ingestion <code>stage</code></td></tr>
+      <tr><td class="k mono">DELETE</td><td class="mono">/api/v1/documents/{id}</td><td>Remove it from the database, disk, vector index and BM25 corpus</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Running it</h3>
+  <div class="grid2">
+    <div>
+      <h4>Local</h4>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+<span class="c"># GROQ_API_KEY — console.groq.com/keys</span>
+<span class="c"># JINA_API_KEY — jina.ai/embeddings</span>
+
+PYTHONPATH=. uvicorn app.main:app \
+  --reload --port 8000</code></pre>
+      <p class="footnote">Web UI at <code>:8000</code>, Swagger at <code>/docs</code>. Nothing to
+      download — embeddings are served over HTTP.</p>
+    </div>
+    <div>
+      <h4>Docker</h4>
+<pre><code>cp .env.example .env
+docker-compose up --build -d
+docker-compose logs -f api</code></pre>
+      <p class="footnote">PostgreSQL instead of SQLite; the fallback embedding model is baked into
+      the image so a Jina outage costs no cold-start download. <code>render.yaml</code> deploys the
+      same image to Render with a mounted disk.</p>
+      <h4>Tests &amp; evaluation</h4>
+<pre><code>PYTHONPATH=. pytest tests/ -q
+PYTHONPATH=. python scripts/evaluate.py
+PYTHONPATH=. python scripts/evaluate.py --compare</code></pre>
+    </div>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════════════════════ 12 EVALUATION ═══ -->
+<section>
+  <span class="h2-num">12 — Evaluation &amp; cost</span>
+  <h2>Measured, not asserted</h2>
+  <p class="h2-sub">
+    A RAG system reports a single accuracy number only when it is hiding something. These are the
+    figures that separate a working pipeline from a confident one.
+  </p>
+
+  <h3>Measured results</h3>
+  <p>
+    <code>scripts/evaluate.py</code> runs a labelled question set — 15 questions, 12 answerable and 3
+    deliberately unanswerable — and reports the metrics that actually matter for RAG rather than a
+    single accuracy number.
+  </p>
+
+  <table class="compact">
+    <thead><tr><th style="width:26%">Metric</th><th style="width:12%">Result</th><th style="width:20%"></th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Recall@6</td><td class="num">100%</td><td><div class="meter"><div class="meter-bar"><div class="meter-fill" style="width:100%"></div></div></div></td><td>The passage containing the answer was retrieved every time</td></tr>
+      <tr><td class="k">MRR</td><td class="num">1.00</td><td><div class="meter"><div class="meter-bar"><div class="meter-fill" style="width:100%"></div></div></div></td><td>It was ranked first every time</td></tr>
+      <tr><td class="k">Answer accuracy</td><td class="num">100%</td><td><div class="meter"><div class="meter-bar"><div class="meter-fill" style="width:100%"></div></div></div></td><td>The expected fact appeared in the answer</td></tr>
+      <tr><td class="k">Groundedness</td><td class="num">100%</td><td><div class="meter"><div class="meter-bar"><div class="meter-fill" style="width:100%"></div></div></div></td><td>Every answer passed citation verification</td></tr>
+      <tr><td class="k">Correct abstention</td><td class="num">100%</td><td><div class="meter"><div class="meter-bar"><div class="meter-fill" style="width:100%"></div></div></div></td><td>All three unanswerable questions were declined, not hallucinated</td></tr>
+      <tr><td class="k">Latency p50</td><td class="num">~4.0 s</td><td></td><td>End to end: planning, retrieval, reranking, generation, verification</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout amber">
+    <span class="lbl">Read this honestly</span>
+    <p>The built-in corpus is small by design, so <code>precision@k</code> is capped by construction
+    and these figures demonstrate that the pipeline works end to end — not that it will score 100% on
+    your documents. Point <code>--dataset</code> at your own labelled set for a figure that means
+    something about your corpus. <code>--compare</code> reruns the same set against hybrid, dense-only
+    and sparse-only retrieval, so the value of the fusion is measured rather than asserted.</p>
+  </div>
+
+  <h3>Cost and rate-limit note</h3>
+  <p>
+    On Groq's free tier the pipeline makes up to four LLM calls per question — plan, rerank, answer,
+    optional verify — which can brush the 8,000 tokens-per-minute limit. Retry and fallback handle this
+    transparently; setting <code>ENABLE_QUERY_PLANNING=False</code> and
+    <code>RERANKER_MODE=heuristic</code> reduces it to a single call for anyone who would rather avoid
+    the backoff. Embeddings are billed separately by Jina and are cached aggressively, so a re-upload
+    of unchanged text costs nothing.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ 13 CLOSING ═══ -->
+<section>
+  <span class="h2-num">13 — In summary</span>
+  <h2>The through-line</h2>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title"><span class="tag">Solves</span></div>
+      <p class="tight">Getting trustworthy answers out of a document corpus without reading it, and
+      without having to independently verify every answer the system produces.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--teal-dim);color:var(--teal)">How</span></div>
+      <p class="tight">Structure-preserving parsing and semantic chunking, hybrid dense + sparse
+      retrieval fused by rank, a precision reranking pass, then per-claim verification of the
+      generated answer against the passages it cites.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--amber-dim);color:var(--amber)">Why</span></div>
+      <p class="tight">Because a confident wrong answer is worse than no answer, and because nothing
+      in a standard RAG pipeline distinguishes the two. The verification stage is the product; the
+      rest of the pipeline exists to give it good material.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="tag" style="background:var(--rose-dim);color:var(--rose)">Cost of it</span></div>
+      <p class="tight">Roughly four LLM calls and one embedding call per question, and an explicit
+      refusal to answer when support is weak. Both are deliberate trades against the alternative.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:6mm">
+    Each design decision in this document traces back to one of the four failure modes named in section
+    01. Chunking with contextual headers answers "boundaries destroy meaning". Hybrid retrieval and
+    HyDE answer "retrieval quietly misses". Query planning answers "the question is a bad query".
+    Grounding answers "'use only the context' is a request, not a constraint". The typed embedding
+    roles introduced in section 05 sharpen the first two at once, by ensuring a question and the
+    passage that answers it are never embedded as though they were the same kind of text.
+  </p>
+
+  <div class="callout">
+    <span class="lbl">Where to look next</span>
+    <p><code>app/rag/pipeline.py</code> is the orchestrator and the only module the API layer talks to
+    — it is the shortest path to understanding the whole system. <code>app/rag/grounding.py</code> is
+    where the distinguishing behaviour lives. <code>app/config.py</code> lists every knob, all of them
+    environment-driven.</p>
+  </div>
+
+  <p class="footnote" style="margin-top:8mm">
+    LexoraAI · Technical Overview · generated from the repository at
+    <code>github.com/Dhanugupta0/Lexora-AI</code>
+  </p>
+</section>
+
+</body>
+</html>

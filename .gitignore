@@ -18,3 +18,7 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+# ONNX model caches (fastembed / chroma / huggingface)
+.cache/
+models/
+.fastembed_cache/

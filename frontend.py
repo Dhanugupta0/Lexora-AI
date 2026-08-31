@@ -35,9 +35,12 @@ def api_delete(doc_id):
     return requests.delete(f"{API}/documents/{doc_id}", timeout=10).ok
 
 
-def api_query(q, top_k=5):
+def api_query(q, top_k=6, history=None):
+    payload = {"question": q, "top_k": top_k}
+    if history:
+        payload["history"] = history
     try:
-        r = requests.post(f"{API}/query", json={"question": q, "top_k": top_k}, timeout=60)
+        r = requests.post(f"{API}/query", json=payload, timeout=90)
         return r.json(), r.status_code
     except requests.ConnectionError:
         return {"detail": "Cannot connect to API. Is the FastAPI server running on port 8000?"}, 503
@@ -54,7 +57,15 @@ def doc_table():
     lines = []
     for i, d in enumerate(docs, 1):
         s = "🟢" if d["status"] == "ready" else ("🔴" if d["status"] == "error" else "🟡")
-        lines.append(f"{i}. {s} **{d['filename']}** ({d['file_type'].upper()}, {d['file_size']//1024}KB) — {d['chunk_count'] or 0} chunks\n\n   ID: `{d['id']}`")
+        detail = f"{d['chunk_count'] or 0} chunks"
+        if d["status"] == "processing" and d.get("stage"):
+            detail = f"{d['stage']}…"
+        elif d["status"] == "error" and d.get("error_message"):
+            detail = f"error: {d['error_message'][:80]}"
+        lines.append(
+            f"{i}. {s} **{d['filename']}** ({d['file_type'].upper()}, "
+            f"{d['file_size']//1024}KB) — {detail}\n\n   ID: `{d['id']}`"
+        )
     return "\n\n".join(lines)
 
 
@@ -63,11 +74,45 @@ def source_text(sources):
         return "No sources yet. Ask a question first."
     lines = []
     for i, s in enumerate(sources, 1):
-        lines.append(f"--- Source {i} (relevance: {s['relevance_score']:.0%}) ---")
-        lines.append(f"Doc: {s['document_id'][:12]}… | Page: {s['page_number']}")
-        lines.append(s["text_preview"][:300])
+        flag = " [CITED]" if s.get("cited") else ""
+        arms = "+".join(s.get("retrievers") or []) or "hybrid"
+        lines.append(f"--- S{i} ({s['relevance_score']:.0%} · {arms}){flag} ---")
+        where = " > ".join(x for x in (s.get("doc_title") or s.get("filename"),
+                                       s.get("section")) if x)
+        lines.append(f"{where or s['document_id'][:12]} | page {s['page_number']}")
+        lines.append(s["text_preview"][:320])
         lines.append("")
     return "\n".join(lines)
+
+
+def answer_footer(result):
+    """One line summarising how trustworthy the answer is and how it was produced."""
+    if result.get("intent") in ("chitchat", "meta"):
+        return ""
+
+    bits = []
+    if result.get("abstained"):
+        bits.append("⚠️ not found in sources")
+    elif result.get("grounded"):
+        bits.append("✅ grounded")
+    elif result.get("sources"):
+        bits.append("⚠️ partially grounded")
+
+    if result.get("sources"):
+        bits.append(f"{result.get('confidence', 0):.0%} confidence")
+
+    retrieval = result.get("retrieval") or {}
+    if retrieval.get("mode"):
+        bits.append(f"{retrieval['mode']} retrieval")
+    if result.get("model"):
+        bits.append(result["model"])
+    trace = result.get("trace") or {}
+    if trace.get("total_ms"):
+        bits.append(f"{trace['total_ms']}ms")
+    if result.get("degraded"):
+        bits.append("fallback path")
+
+    return "\n\n<sub>" + " · ".join(bits) + "</sub>" if bits else ""
 
 
 def do_upload(files, progress=gr.Progress()):
@@ -112,27 +157,38 @@ def do_query(question, history, top_k):
     if not question.strip():
         yield history, "No sources yet. Ask a question first.", ""
         return
+
     history = list(history or [])
+    # Send the prior turns so follow-ups ("and when is it due?") resolve server-side.
+    prior = [t for t in history if t.get("content")][-6:]
     history.append({"role": "user", "content": question})
     history.append({"role": "assistant", "content": "Thinking…"})
     yield history, "Searching…", ""
+
     try:
-        result, code = api_query(question, int(top_k))
+        result, code = api_query(question, int(top_k), history=prior)
     except Exception as e:
         history[-1] = {"role": "assistant", "content": f"Error: {e}"}
         yield history, "No sources yet. Ask a question first.", ""
         return
+
     if code != 200:
         history[-1] = {"role": "assistant", "content": f"Error: {result.get('detail', result)}"}
         yield history, "No sources yet. Ask a question first.", ""
         return
-    history[-1] = {"role": "assistant", "content": result.get("answer", "No answer.")}
+
+    answer = result.get("answer", "No answer.") + answer_footer(result)
+    history[-1] = {"role": "assistant", "content": answer}
     yield history, source_text(result.get("sources", [])), ""
 
 
 with gr.Blocks(title="LexoraAI") as demo:
 
-    gr.Markdown("# ⚡ LexoraAI\nUpload documents and ask questions.")
+    gr.Markdown(
+        "# ⚡ LexoraAI\n"
+        "Hybrid retrieval (dense + BM25) → reranking → grounded answers with "
+        "verified citations. Every answer reports its own confidence."
+    )
 
     status = gr.Markdown("🟢 Backend online" if api_health() else "🔴 Backend offline")
 
@@ -147,7 +203,7 @@ with gr.Blocks(title="LexoraAI") as demo:
                         send = gr.Button("Send", variant="primary", scale=1)
                     with gr.Row():
                         clear = gr.Button("Clear", size="sm")
-                        topk = gr.Slider(1, 10, value=5, step=1, label="Top-K", scale=3)
+                        topk = gr.Slider(1, 12, value=6, step=1, label="Passages retrieved", scale=3)
                 with gr.Column(scale=2):
                     gr.Markdown("### Sources")
                     src = gr.Textbox(
@@ -161,7 +217,7 @@ with gr.Blocks(title="LexoraAI") as demo:
             with gr.Row():
                 with gr.Column():
                     gr.Markdown("### Upload")
-                    files = gr.File(file_count="multiple", file_types=[".pdf", ".docx", ".txt"], height=120)
+                    files = gr.File(file_count="multiple", file_types=[".pdf", ".docx", ".txt", ".md"], height=120)
                     ubtn = gr.Button("Upload", variant="primary")
                     umsg = gr.Markdown("")
                 with gr.Column():

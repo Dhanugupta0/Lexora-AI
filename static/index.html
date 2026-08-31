@@ -101,6 +101,17 @@ a{color:var(--accent2);text-decoration:none}
 .sources-toggle{font-size:.78rem;color:var(--accent2);cursor:pointer;margin-top:8px;display:inline-flex;align-items:center;gap:4px}
 .sources-panel{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;display:none}
 .sources-panel.open{display:block}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.badge{font-size:.7rem;font-weight:600;padding:3px 8px;border-radius:999px;cursor:default}
+.badge-success{background:rgba(0,184,148,.15);color:var(--success)}
+.badge-warning{background:rgba(253,203,110,.15);color:var(--warning)}
+.badge-error{background:rgba(225,112,85,.15);color:var(--error)}
+.badge-muted{background:var(--surface3);color:var(--text2)}
+sup.cite{display:inline-block;background:var(--accent-glow);color:var(--accent2);font-size:.65rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:2px}
+.source-chip.cited{border-left:2px solid var(--accent)}
+.source-meta{color:var(--text2);font-size:.72rem}
+.cited-flag{background:var(--accent-glow);color:var(--accent2);font-size:.65rem;font-weight:600;padding:1px 6px;border-radius:999px;margin-left:4px}
+.source-text{margin-top:6px;color:var(--text2);line-height:1.5}
 .source-chip{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:.78rem;color:var(--text2);line-height:1.5}
 .source-score{color:var(--success);font-weight:600}
 
@@ -411,25 +422,75 @@ async function sendQuestion() {
     const r = await fetch(API + '/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, top_k: 5 })
+      body: JSON.stringify({ question: q, top_k: 6, history: history.slice(-6) })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.detail || 'Query failed');
 
-    let html = formatAnswer(data.answer || 'No answer.');
-    if (data.sources && data.sources.length) {
-      html += `<div class="sources-toggle" onclick="this.nextElementSibling.classList.toggle('open')">📎 ${data.sources.length} sources ▾</div>`;
-      html += '<div class="sources-panel">';
-      data.sources.forEach((s, i) => {
-        html += `<div class="source-chip"><strong>Source ${i+1}</strong> · <span class="source-score">${(s.relevance_score*100).toFixed(0)}%</span> · Page ${s.page_number}<br>${esc(s.text_preview.slice(0,200))}...</div>`;
-      });
-      html += '</div>';
-    }
-    updateMessage(thinkingId, html);
+    history.push({ role: 'user', content: q });
+    history.push({ role: 'assistant', content: (data.answer || '').slice(0, 1500) });
+
+    updateMessage(thinkingId, renderAnswer(data));
   } catch (err) {
     updateMessage(thinkingId, `<span style="color:var(--error)">Error: ${esc(err.message)}</span>`);
   }
   isProcessing = false;
+}
+
+// Chat history, so follow-ups like "and when is it due?" resolve server-side.
+const history = [];
+
+function renderAnswer(data) {
+  let html = formatAnswer(data.answer || 'No answer.');
+  html = html.replace(/\[S(\d+)\]/g, '<sup class="cite">$1</sup>');
+
+  const chips = [];
+  const hasSources = data.sources && data.sources.length;
+  if (data.intent && data.intent !== 'chitchat') {
+    if (data.abstained) chips.push(badge('warning', 'Not found in sources'));
+    else if (data.grounded) chips.push(badge('success', 'Grounded'));
+    else if (hasSources) chips.push(badge('warning', 'Partially grounded'));
+
+    if (typeof data.confidence === 'number' && hasSources) {
+      const pct = Math.round(data.confidence * 100);
+      const tone = pct >= 70 ? 'success' : pct >= 40 ? 'warning' : 'error';
+      chips.push(badge(tone, pct + '% confidence', 'How well each claim is supported by its cited passage'));
+    }
+  }
+  if (data.degraded) chips.push(badge('warning', 'Fallback path'));
+
+  if (data.trace && data.trace.stages) {
+    const stages = data.trace.stages;
+    const mode = (data.retrieval && data.retrieval.mode) || '';
+    const detail = Object.keys(stages).map(k => k + ' ' + stages[k].ms + 'ms').join('  ·  ');
+    chips.push(badge('muted', (mode ? mode + ' · ' : '') + data.trace.total_ms + 'ms', detail));
+  }
+  if (chips.length) html += '<div class="badges">' + chips.join('') + '</div>';
+
+  if (hasSources) {
+    const cited = data.sources.filter(s => s.cited).length;
+    const label = cited ? cited + ' cited of ' + data.sources.length + ' retrieved'
+                        : data.sources.length + ' passages retrieved';
+    html += '<div class="sources-toggle" onclick="this.nextElementSibling.classList.toggle(\'open\')">📎 ' + label + ' ▾</div>';
+    html += '<div class="sources-panel">';
+    data.sources.forEach((s, i) => {
+      const where = [s.doc_title || s.filename, s.section].filter(Boolean).join(' › ');
+      const arms = (s.retrievers || []).join('+') || 'hybrid';
+      html += '<div class="source-chip' + (s.cited ? ' cited' : '') + '">'
+            + '<strong>S' + (i + 1) + '</strong> '
+            + '<span class="source-score">' + Math.round((s.relevance_score || 0) * 100) + '%</span> '
+            + '<span class="source-meta">' + esc(where) + ' · p.' + s.page_number + ' · ' + esc(arms) + '</span>'
+            + (s.cited ? '<span class="cited-flag">cited</span>' : '')
+            + '<div class="source-text">' + esc((s.text_preview || '').slice(0, 260)) + '…</div>'
+            + '</div>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+function badge(tone, text, title) {
+  return '<span class="badge badge-' + tone + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(text) + '</span>';
 }
 
 let msgCounter = 0;

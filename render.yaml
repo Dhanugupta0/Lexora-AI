@@ -4,17 +4,53 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
+    healthCheckPath: /api/v1/health
     envVars:
-      - key: OPENAI_API_KEY
+      # --- required: add your keys in the Render dashboard -------------------
+      - key: GROQ_API_KEY
         sync: false
+
+      # --- llm ---------------------------------------------------------------
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_FALLBACK_MODELS
+        value: openai/gpt-oss-120b,qwen/qwen3.6-27b
+
+      # --- storage (persisted on the disk mounted below) ---------------------
       - key: DATABASE_URL
         value: sqlite:////data/db/lexora.db
       - key: CHROMA_PATH
         value: /data/chroma
       - key: UPLOAD_DIR
         value: /data/uploads
+
+      # --- embeddings (Jina AI, hosted) --------------------------------------
+      - key: JINA_API_KEY
+        sync: false
+      - key: EMBEDDING_PROVIDER
+        value: jina
       - key: EMBEDDING_MODEL
-        value: text-embedding-3-small
+        value: jina-embeddings-v4
+      - key: JINA_EMBED_DIMENSIONS
+        value: "1024"
+      # If JINA_API_KEY is missing the embedder falls back to the local ONNX
+      # model baked into the image, so the service still starts.
+
+      # --- pipeline ----------------------------------------------------------
+      - key: CHUNK_STRATEGY
+        value: semantic
+      - key: RETRIEVAL_MODE
+        value: hybrid
+      # 'llm' reranking keeps memory flat -- the free tier has 512 MB.
+      # Switch to 'cross_encoder' on a paid instance for offline reranking.
+      - key: RERANKER_MODE
+        value: llm
+      - key: ENABLE_QUERY_PLANNING
+        value: "True"
+      - key: ENABLE_HYDE
+        value: "True"
+      - key: ENABLE_GROUNDING_CHECK
+        value: "True"
     disk:
       name: lexora-data
       mountPath: /data

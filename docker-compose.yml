@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   postgres:
@@ -29,9 +27,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-lexora}:${POSTGRES_PASSWORD:-lexora_secret}@postgres:5432/${POSTGRES_DB:-lexora}
       CHROMA_PATH: /data/chroma
       UPLOAD_DIR: /uploads
+      # Keep the downloaded ONNX fallback model across container restarts.
+      # (Embeddings normally come from the Jina API -- JINA_API_KEY is in .env.)
+      FASTEMBED_CACHE_PATH: /data/models
     volumes:
       - chroma_data:/data/chroma
       - upload_data:/uploads
+      - model_cache:/data/models
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
       - "7860:7860"
@@ -43,3 +46,4 @@ volumes:
   postgres_data:
   chroma_data:
   upload_data:
+  model_cache:

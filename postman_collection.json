@@ -1,182 +1,69 @@
 {
   "info": {
-    "name": "LexoraAI RAG Pipeline",
-    "description": "Postman collection for the LexoraAI RAG pipeline API. Set the `baseUrl` variable to your deployment URL.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_postman_id": "lexora-ai-rag-collection"
+    "name": "LexoraAI v2 — Hybrid RAG",
+    "description": "Upload documents, then ask questions and get grounded, citation-verified answers.\n\nSet the `baseUrl` variable to your deployment (defaults to http://localhost:8000).\nThe upload request saves the returned document id into `documentId` automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8000",
-      "type": "string"
-    },
-    {
-      "key": "documentId",
-      "value": "",
-      "type": "string",
-      "description": "Populated automatically by the Upload request test script"
-    }
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "documentId", "value": "" }
   ],
   "item": [
     {
-      "name": "Health",
+      "name": "System",
       "item": [
         {
-          "name": "Health Check",
+          "name": "Health",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "health"]
-            },
-            "description": "Returns 200 when API, PostgreSQL, and ChromaDB are all reachable."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Has status field', () => {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json).to.have.property('status');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": { "raw": "{{baseUrl}}/api/v1/health", "host": ["{{baseUrl}}"], "path": ["api","v1","health"] },
+            "description": "Fast liveness probe. Use this for uptime checks."
+          }
+        },
+        {
+          "name": "Health (deep)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/health/deep", "host": ["{{baseUrl}}"], "path": ["api","v1","health","deep"] },
+            "description": "Component-level status: LLM circuit breaker state, embedding model and cache, vector store, BM25 index, reranker. Loads the embedding model, so it is slower than /health."
+          }
+        },
+        {
+          "name": "Stats",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/stats", "host": ["{{baseUrl}}"], "path": ["api","v1","stats"] },
+            "description": "Corpus size, chunk and token counts, and the active pipeline configuration."
+          }
         }
       ]
     },
     {
-      "name": "Documents",
+      "name": "Ingestion",
       "item": [
         {
-          "name": "Upload Documents",
+          "name": "Upload documents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accepted && body.accepted.length) {",
+                  "  pm.collectionVariables.set('documentId', body.accepted[0].document_id);",
+                  "}",
+                  "pm.test('accepted for processing', () => pm.response.to.have.status(202));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "files",
-                  "type": "file",
-                  "src": [],
-                  "description": "Select one or more PDF, DOCX, or TXT files"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/upload",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "upload"]
-            },
-            "description": "Upload 1–20 documents. Processing is asynchronous — poll GET /documents/{id} to check status."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 202', () => pm.response.to.have.status(202));",
-                  "const json = pm.response.json();",
-                  "if (json.accepted && json.accepted.length > 0) {",
-                  "  pm.collectionVariables.set('documentId', json.accepted[0].document_id);",
-                  "  console.log('Saved documentId:', json.accepted[0].document_id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "List Documents",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/documents?page=1&page_size=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "documents"],
-              "query": [
-                {"key": "page", "value": "1"},
-                {"key": "page_size", "value": "20"},
-                {"key": "status", "value": "ready", "disabled": true}
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Has documents array', () => {",
-                  "  pm.expect(pm.response.json()).to.have.property('documents');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Document Detail",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "documents", "{{documentId}}"]
-            },
-            "description": "Returns document metadata and up to 10 chunk previews."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200 or 404', () => {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Delete Document",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/documents/{{documentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "documents", "{{documentId}}"]
-            },
-            "description": "Deletes the document, its chunks from PostgreSQL, and its vectors from ChromaDB."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200 or 404', () => {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "body": { "mode": "formdata", "formdata": [ { "key": "files", "type": "file", "src": [] } ] },
+            "url": { "raw": "{{baseUrl}}/api/v1/upload", "host": ["{{baseUrl}}"], "path": ["api","v1","upload"] },
+            "description": "Accepts PDF, DOCX, TXT and MD, up to 20 files per request. Returns 202 immediately; ingestion (parse → chunk → embed → index) runs in the background. Poll 'Get document' to watch the `stage` field."
+          }
         }
       ]
     },
@@ -184,56 +71,91 @@
       "name": "Query",
       "item": [
         {
-          "name": "Query Documents",
+          "name": "Ask a question",
           "request": {
             "method": "POST",
-            "header": [
-              {"key": "Content-Type", "value": "application/json"}
-            ],
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"question\": \"What are the main topics covered in the documents?\",\n  \"top_k\": 5\n}"
+              "raw": "{\n  \"question\": \"What was Q3 revenue and how much did it grow?\",\n  \"top_k\": 6\n}"
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/query",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "query"]
-            },
-            "description": "Run a RAG query across all uploaded documents."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Has answer and sources', () => {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json).to.have.all.keys('answer', 'sources', 'question');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
+            "url": { "raw": "{{baseUrl}}/api/v1/query", "host": ["{{baseUrl}}"], "path": ["api","v1","query"] },
+            "description": "Returns the answer plus `confidence`, `grounded`, `abstained`, the retrieval `plan`, per-stage `trace` timings, and every source with its dense/sparse/rerank scores and whether the answer actually cited it."
+          }
         },
         {
-          "name": "Query Filtered by Document",
+          "name": "Ask a follow-up (with history)",
           "request": {
             "method": "POST",
-            "header": [
-              {"key": "Content-Type", "value": "application/json"}
-            ],
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"question\": \"Summarise this document\",\n  \"top_k\": 3,\n  \"document_ids\": [\"{{documentId}}\"]\n}"
+              "raw": "{\n  \"question\": \"and when is it due?\",\n  \"top_k\": 6,\n  \"history\": [\n    { \"role\": \"user\", \"content\": \"What is contract NW-4417?\" },\n    { \"role\": \"assistant\", \"content\": \"A renewal with Aperture Systems worth $6.9M ARR.\" }\n  ]\n}"
             },
+            "url": { "raw": "{{baseUrl}}/api/v1/query", "host": ["{{baseUrl}}"], "path": ["api","v1","query"] },
+            "description": "Pronouns are resolved against the history before retrieval. Check `plan.standalone_question` in the response to see the rewrite, and `plan.resolved_question` to see which phrasing the pipeline actually used."
+          }
+        },
+        {
+          "name": "Ask within specific documents",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Summarise the risks section.\",\n  \"top_k\": 8,\n  \"document_ids\": [\"{{documentId}}\"]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/query", "host": ["{{baseUrl}}"], "path": ["api","v1","query"] },
+            "description": "Restricts both the dense and sparse retrievers to the given documents."
+          }
+        },
+        {
+          "name": "Ask with strict verification",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are the key financial figures?\",\n  \"top_k\": 6,\n  \"verify_with_llm\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/query", "host": ["{{baseUrl}}"], "path": ["api","v1","query"] },
+            "description": "Adds an NLI-style adjudication pass over borderline claims. Slower and stricter — use it when a wrong answer is expensive."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List documents",
+          "request": {
+            "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/query",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "query"]
-            },
-            "description": "Restrict retrieval to a specific document."
+              "raw": "{{baseUrl}}/api/v1/documents?limit=50&offset=0",
+              "host": ["{{baseUrl}}"], "path": ["api","v1","documents"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" },
+                { "key": "status", "value": "ready", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get document",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents/{{documentId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","documents","{{documentId}}"] },
+            "description": "Poll this after upload. `status` moves pending → processing → ready, and `stage` shows parsing / chunking / embedding / indexing while it runs."
+          }
+        },
+        {
+          "name": "Delete document",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/documents/{{documentId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","documents","{{documentId}}"] },
+            "description": "Removes the row, the stored file, its vectors and its BM25 entries."
           }
         }
       ]
