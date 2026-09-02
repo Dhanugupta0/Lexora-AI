@@ -297,15 +297,9 @@ Everything is env-driven; see `.env.example` for the full list.
 
 **On Groq's free tier** the pipeline makes up to four LLM calls per question (plan → rerank → answer → optional verify), which can brush the 8,000 tokens-per-minute limit. The retry and fallback logic handles this transparently, but setting `ENABLE_QUERY_PLANNING=False` and `RERANKER_MODE=heuristic` cuts it to a single call if you'd rather avoid the backoff.
 
----
 
-## Deploying to Render
 
-1. Push to GitHub, then **New → Blueprint** in the [Render dashboard](https://dashboard.render.com/) — `render.yaml` configures everything.
-2. Add `GROQ_API_KEY` when prompted.
-3. Optionally attach a 1 GB persistent disk at `/data` so documents survive redeploys.
 
-Free-tier instances sleep after 15 minutes idle; the first request back takes ~30 s. Keep `RERANKER_MODE=llm` there — the cross-encoder needs memory the free tier doesn't have.
 
 ---
 
